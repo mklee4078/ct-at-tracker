@@ -133,6 +133,7 @@ td{padding:7px 9px;white-space:nowrap;vertical-align:middle}
   <div class="nav-tabs" id="navTabs">
     <div class="tb on" id="tab-tracker" onclick="gPage('tracker',this)">📊 트래커</div>
     <div class="tb" id="tab-surge" onclick="gPage('surge',this)">🔥 급상승</div>
+    <div class="tb" id="tab-sellic" onclick="gPage('sellic',this)">🔗 셀릭</div>
     <div class="tb" id="tab-launch" onclick="gPage('launch',this)">📅 발매일</div>
     <div class="tb" id="tab-stock" onclick="gPage('stock',this)">📦 재고</div>
   </div>
@@ -223,40 +224,93 @@ td{padding:7px 9px;white-space:nowrap;vertical-align:middle}
 </div>
 
 <!-- LAUNCH -->
-<div class="page" id="page-launch">
-  <div class="sp"><div class="spg">
-    <div class="card">
-      <div class="ch2"><div class="ct2">📅 발매일 / 정상가</div></div>
-      <div class="cb">
-        <div class="dz" id="lDrop" onclick="document.getElementById('fLaunch').click()">
-          <h3>linkage_modify 업로드</h3>
-          <p><code>쇼핑몰상품코드</code>·<code>모델명</code>·<code>판매가</code>·<code>발매일</code><br>중복 코드 자동 스킵</p>
-          <button class="btn" style="margin-top:10px" onclick="event.stopPropagation();dlTpl()">⬇ 템플릿</button>
+<!-- SELLIC -->
+<div class="page" id="page-sellic">
+  <div class="sp">
+    <div class="ib">
+      <strong>셀릭 파일이란?</strong> — <code>linkage_modify_YYYYMMDD.xlsx</code><br>
+      쇼핑몰별 상품코드·모델명·정상가가 담긴 연동 파일입니다.<br>
+      업로드하면 트래커의 <strong>정상가</strong>와 <strong>재고 매칭(모델명)</strong>이 자동으로 연결됩니다.<br>
+      중복 상품코드는 자동으로 스킵됩니다.
+    </div>
+    <div class="spg">
+      <div class="card">
+        <div class="ch2"><div class="ct2">🔗 셀릭 파일 업로드</div></div>
+        <div class="cb">
+          <div class="dz" id="lDrop" onclick="document.getElementById('fLaunch').click()">
+            <div style="font-size:28px;margin-bottom:8px">📋</div>
+            <h3>linkage_modify 파일 업로드</h3>
+            <p>
+              파일명: <code>linkage_modify_YYYYMMDD.xlsx</code><br>
+              필요 컬럼: <code>쇼핑몰상품코드</code> · <code>모델명</code> · <code>판매가</code><br>
+              드래그앤드롭 또는 클릭해서 선택
+            </p>
+            <button class="btn" style="margin-top:10px" onclick="event.stopPropagation();dlTpl()">⬇ 템플릿 다운로드</button>
+          </div>
+          <input type="file" id="fLaunch" accept=".xlsx,.xls">
+          <div style="margin-top:10px;font-size:11px;color:var(--muted)" id="sellicInfo"></div>
         </div>
-        <input type="file" id="fLaunch" accept=".xlsx,.xls">
-        <div style="margin-top:13px;padding-top:13px;border-top:1px solid var(--bd)">
-          <div style="font-size:10px;color:var(--muted);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.06em">직접 추가</div>
-          <div class="fr">
-            <input type="text" id="mCode" placeholder="쇼핑몰상품코드">
-            <input type="text" id="mModel" placeholder="모델명">
-            <input type="number" id="mPrice" placeholder="정상가">
-            <input type="date" id="mDate">
-            <button class="btn pri" onclick="addManual()">추가</button>
+      </div>
+      <div class="card">
+        <div class="ch2">
+          <div class="ct2">셀릭 연동 현황</div>
+          <div style="display:flex;gap:7px;align-items:center">
+            <span style="font-size:11px;color:var(--muted)" id="lSum">0개</span>
+            <button class="btn" onclick="exportLaunch()">엑셀 내보내기</button>
+          </div>
+        </div>
+        <div class="sw" id="lTbl"><div class="esm">셀릭 파일을 업로드하세요</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LAUNCH (발매일) -->
+<div class="page" id="page-launch">
+  <div class="sp">
+    <div class="ib">
+      <strong>발매일 등록</strong> — 상품별 출시일을 직접 입력합니다.<br>
+      등록하면 트래커에서 <strong>D+N일</strong> (발매 후 경과일)이 자동으로 표시됩니다.<br>
+      쇼핑몰상품코드 기준으로 등록하세요.
+    </div>
+    <div class="spg">
+      <div class="card">
+        <div class="ch2"><div class="ct2">📅 발매일 등록</div></div>
+        <div class="cb">
+          <div class="dz" id="ldDrop" onclick="document.getElementById('fLaunchDate').click()">
+            <div style="font-size:28px;margin-bottom:8px">📅</div>
+            <h3>발매일 파일 업로드</h3>
+            <p>
+              필요 컬럼: <code>쇼핑몰상품코드</code> · <code>발매일</code><br>
+              날짜 형식: <code>YYYY-MM-DD</code> 또는 <code>YYYYMMDD</code><br>
+              드래그앤드롭 또는 클릭해서 선택
+            </p>
+            <button class="btn" style="margin-top:10px" onclick="event.stopPropagation();dlLaunchTpl()">⬇ 템플릿 다운로드</button>
+          </div>
+          <input type="file" id="fLaunchDate" accept=".xlsx,.xls">
+          <div style="margin-top:13px;padding-top:13px;border-top:1px solid var(--bd)">
+            <div style="font-size:10px;color:var(--muted);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:.06em">직접 추가</div>
+            <div class="fr">
+              <input type="text" id="mCode" placeholder="쇼핑몰상품코드 (예: 308537028)">
+              <input type="date" id="mDate">
+              <button class="btn pri" onclick="addManual()">+ 추가</button>
+            </div>
+            <div style="font-size:11px;color:var(--muted);margin-top:6px">※ 정상가·모델명은 셀릭 탭에서 자동 연결됩니다</div>
           </div>
         </div>
       </div>
-    </div>
-    <div class="card">
-      <div class="ch2">
-        <div class="ct2">목록</div>
-        <div style="display:flex;gap:7px;align-items:center">
-          <span style="font-size:11px;color:var(--muted)" id="lSum">0개</span>
-          <button class="btn" onclick="exportLaunch()">엑셀 내보내기</button>
+      <div class="card">
+        <div class="ch2">
+          <div class="ct2">발매일 목록</div>
+          <div style="display:flex;gap:7px;align-items:center">
+            <span style="font-size:11px;color:var(--muted)" id="ldSum">0개</span>
+            <button class="btn" onclick="exportLaunchDate()">엑셀 내보내기</button>
+          </div>
         </div>
+        <div class="sw" id="ldTbl"><div class="esm">등록된 발매일이 없습니다</div></div>
       </div>
-      <div class="sw" id="lTbl"><div class="esm">데이터 없음</div></div>
     </div>
-  </div></div>
+  </div>
 </div>
 
 <!-- STOCK -->
@@ -308,20 +362,19 @@ td{padding:7px 9px;white-space:nowrap;vertical-align:middle}
 <script>
 // ── 페이지 전환 ──────────────────────────────────────
 function gPage(id, el){
-  // 모든 페이지 숨기기
-  ['tracker','surge','launch','stock'].forEach(function(p){
-    var pg = document.getElementById('page-'+p);
+  ['tracker','surge','sellic','launch','stock'].forEach(function(p){
+    var pg=document.getElementById('page-'+p);
     if(pg) pg.classList.remove('on');
-    var tb = document.getElementById('tab-'+p);
+    var tb=document.getElementById('tab-'+p);
     if(tb) tb.classList.remove('on');
   });
-  // 선택된 페이지 보이기
-  var pg = document.getElementById('page-'+id);
+  var pg=document.getElementById('page-'+id);
   if(pg) pg.classList.add('on');
-  var tb = document.getElementById('tab-'+id);
+  var tb=document.getElementById('tab-'+id);
   if(tb) tb.classList.add('on');
   if(id==='surge')  renderSurge();
-  if(id==='launch') renderLaunch();
+  if(id==='sellic') renderLaunch();
+  if(id==='launch') renderLaunchDate();
   if(id==='stock')  renderStock();
 }
 
@@ -445,6 +498,32 @@ function readDaily(file){
 
 // ── linkage 업로드 ────────────────────────────────
 setupDrop('lDrop','fLaunch',readLaunch);
+setupDrop('ldDrop','fLaunchDate',readLaunchDateFile);
+document.getElementById('fLaunchDate').addEventListener('change',e=>{[...e.target.files].forEach(readLaunchDateFile);e.target.value='';});
+function readLaunchDateFile(file){
+  new Promise(res=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.readAsArrayBuffer(file);})
+  .then(buf=>{
+    try{
+      const wb=XLSX.read(buf,{type:'array',cellFormula:false,cellHTML:false});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const raw=XLSX.utils.sheet_to_json(ws,{defval:null});
+      let cnt=0;
+      for(const r of raw){
+        const code=String(r['쇼핑몰상품코드']||r['상품코드']||'').trim();
+        const dr=r['발매일']?String(r['발매일']).trim():null;
+        if(!code||!dr)continue;
+        let ld=null;
+        if(/^\d{4}-\d{2}-\d{2}$/.test(dr))ld=dr;
+        else if(/^\d{8}$/.test(dr))ld=`${dr.slice(0,4)}-${dr.slice(4,6)}-${dr.slice(6,8)}`;
+        if(!ld)continue;
+        if(!launchMap[code])launchMap[code]={d:null,p:null,m:''};
+        launchMap[code].d=ld;cnt++;
+      }
+      sv(LK,launchMap);renderLaunchDate();render();
+      toast(`발매일 ${cnt}개 등록 ✓`,'ok');
+    }catch(e){toast('파싱 오류','err');console.error(e);}
+  });
+}
 document.getElementById('fLaunch').addEventListener('change',e=>{[...e.target.files].forEach(readLaunch);e.target.value='';});
 function readLaunch(file){
   new Promise(res=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.readAsArrayBuffer(file);})
@@ -743,16 +822,69 @@ function setLD(code,val){if(!launchMap[code])launchMap[code]={d:null,p:null,m:''
 // ── LAUNCH TABLE ──────────────────────────────────
 function addManual(){
   const code=document.getElementById('mCode').value.trim();
-  if(!code){toast('코드 필요','err');return;}
-  if(launchMap[code]){toast('이미 존재 — 수정하려면 목록에서 직접 변경','err');return;}
-  const model=document.getElementById('mModel').value.trim();
-  const price=document.getElementById('mPrice').value.trim();
   const date=document.getElementById('mDate').value;
-  launchMap[code]={d:date||null,p:parseInt(price)||null,m:model};
-  sv(LK,launchMap);renderLaunch();render();
-  ['mCode','mModel','mPrice','mDate'].forEach(id=>document.getElementById(id).value='');
-  toast(code+' 추가','ok');
+  if(!code){toast('쇼핑몰상품코드를 입력하세요','err');return;}
+  if(!date){toast('발매일을 선택하세요','err');return;}
+  if(!launchMap[code]) launchMap[code]={d:null,p:null,m:''};
+  launchMap[code].d=date;
+  sv(LK,launchMap);renderLaunchDate();render();
+  document.getElementById('mCode').value='';
+  document.getElementById('mDate').value='';
+  toast(code+' 발매일 등록 ✓','ok');
 }
+function renderLaunchDate(){
+  // 발매일 등록된 것만 표시
+  const entries=Object.entries(launchMap).filter(([,v])=>v.d);
+  document.getElementById('ldSum').textContent=entries.length+'개';
+  const con=document.getElementById('ldTbl');
+  if(!con)return;
+  if(!entries.length){con.innerHTML='<div class="esm">등록된 발매일이 없습니다</div>';return;}
+  entries.sort((a,b)=>a[1].d>b[1].d?-1:1); // 최신 발매일 위로
+  const rows=entries.map(([code,info])=>{
+    const name=findName(code);
+    return`<tr>
+      <td class="cc">${code}</td>
+      <td style="font-size:11px;color:var(--sub2);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${name}</td>
+      <td><input type="date" value="${info.d||''}" onchange="launchMap['${code}'].d=this.value;sv(LK,launchMap);renderLaunchDate();render()"></td>
+      <td>${info.d?daysEl(info.d):'—'}</td>
+      <td><button class="rd" onclick="delLaunchDate('${code}')">✕</button></td>
+    </tr>`;
+  }).join('');
+  con.innerHTML=`<table class="st"><thead><tr><th>쇼핑몰상품코드</th><th>상품명</th><th>발매일</th><th>D+</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+function delLaunchDate(code){
+  if(launchMap[code])launchMap[code].d=null;
+  sv(LK,launchMap);renderLaunchDate();render();
+  toast(code+' 발매일 삭제');
+}
+function exportLaunchDate(){
+  const entries=Object.entries(launchMap).filter(([,v])=>v.d);
+  if(!entries.length){toast('데이터 없음','err');return;}
+  const wb=XLSX.utils.book_new();
+  const data=[['쇼핑몰상품코드','상품명','발매일','D+'],
+    ...entries.map(([c,v])=>{
+      const n=findName(c);
+      const dy=Math.floor((new Date()-new Date(v.d))/86400000);
+      return[c,n,v.d,dy>=0?'D+'+dy:'예정'];
+    })];
+  const ws=XLSX.utils.aoa_to_sheet(data);
+  XLSX.utils.book_append_sheet(wb,ws,'발매일');
+  XLSX.writeFile(wb,'발매일_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  toast('내보내기 완료');
+}
+function dlLaunchTpl(){
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet([
+    ['쇼핑몰상품코드','발매일'],
+    ['308537028','2026-03-01'],
+    ['308537027','2026-03-01'],
+  ]);
+  ws['!cols']=[{wch:18},{wch:14}];
+  XLSX.utils.book_append_sheet(wb,ws,'발매일');
+  XLSX.writeFile(wb,'발매일_템플릿.xlsx');
+  toast('템플릿 다운로드');
+}
+
 function renderLaunch(){
   const entries=Object.entries(launchMap).filter(([,v])=>v.d||v.p||v.m);
   document.getElementById('lSum').textContent=entries.length+'개';
