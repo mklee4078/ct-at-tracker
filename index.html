@@ -271,7 +271,7 @@ td{padding:7px 9px;white-space:nowrap;vertical-align:middle}
     <div class="ib">
       <strong>발매일 등록</strong> — 상품별 출시일을 직접 입력합니다.<br>
       등록하면 트래커에서 <strong>D+N일</strong> (발매 후 경과일)이 자동으로 표시됩니다.<br>
-      쇼핑몰상품코드 기준으로 등록하세요.
+      품번 기준으로 등록하세요.
     </div>
     <div class="spg">
       <div class="card">
@@ -281,7 +281,7 @@ td{padding:7px 9px;white-space:nowrap;vertical-align:middle}
             <div style="font-size:28px;margin-bottom:8px">📅</div>
             <h3>발매일 파일 업로드</h3>
             <p>
-              필요 컬럼: <code>쇼핑몰상품코드</code> · <code>발매일</code><br>
+              필요 컬럼: <code>품번</code> · <code>발매일</code><br>
               날짜 형식: <code>YYYY-MM-DD</code> 또는 <code>YYYYMMDD</code><br>
               드래그앤드롭 또는 클릭해서 선택
             </p>
@@ -291,7 +291,7 @@ td{padding:7px 9px;white-space:nowrap;vertical-align:middle}
           <div style="margin-top:13px;padding-top:13px;border-top:1px solid var(--bd)">
             <div style="font-size:10px;color:var(--muted);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:.06em">직접 추가</div>
             <div class="fr">
-              <input type="text" id="mCode" placeholder="쇼핑몰상품코드 (예: 308537028)">
+              <input type="text" id="mCode" placeholder="품번 (예: CTI2BL06)">
               <input type="date" id="mDate">
               <button class="btn pri" onclick="addManual()">+ 추가</button>
             </div>
@@ -509,7 +509,7 @@ function readLaunchDateFile(file){
       const raw=XLSX.utils.sheet_to_json(ws,{defval:null});
       let cnt=0;
       for(const r of raw){
-        const code=String(r['쇼핑몰상품코드']||r['상품코드']||'').trim();
+        const code=String(r['품번']||r['쇼핑몰상품코드']||r['상품코드']||'').trim();
         const dr=r['발매일']?String(r['발매일']).trim():null;
         if(!code||!dr)continue;
         let ld=null;
@@ -534,7 +534,7 @@ function readLaunch(file){
       const raw=XLSX.utils.sheet_to_json(ws,{defval:null});
       let added=0,skipped=0;
       for(const r of raw){
-        const code=String(r['쇼핑몰상품코드']||r['상품코드']||'').trim();
+        const code=String(r['품번']||r['쇼핑몰상품코드']||r['상품코드']||'').trim();
         if(!code)continue;
         if(launchMap[code]){skipped++;continue;} // 중복 스킵
         const model=String(r['모델명']||r['품번']||'').trim();
@@ -850,7 +850,7 @@ function renderLaunchDate(){
       <td><button class="rd" onclick="delLaunchDate('${code}')">✕</button></td>
     </tr>`;
   }).join('');
-  con.innerHTML=`<table class="st"><thead><tr><th>쇼핑몰상품코드</th><th>상품명</th><th>발매일</th><th>D+</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  con.innerHTML=`<table class="st"><thead><tr><th>품번</th><th>상품명</th><th>발매일</th><th>D+</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 function delLaunchDate(code){
   if(launchMap[code])launchMap[code].d=null;
@@ -875,9 +875,9 @@ function exportLaunchDate(){
 function dlLaunchTpl(){
   const wb=XLSX.utils.book_new();
   const ws=XLSX.utils.aoa_to_sheet([
-    ['쇼핑몰상품코드','발매일'],
-    ['308537028','2026-03-01'],
-    ['308537027','2026-03-01'],
+    ['품번','발매일'],
+    ['CTI2BL06','2026-03-01'],
+    ['ATI2KT01','2026-03-15'],
   ]);
   ws['!cols']=[{wch:18},{wch:14}];
   XLSX.utils.book_append_sheet(wb,ws,'발매일');
