@@ -507,23 +507,28 @@ function readLaunchDateFile(file){
   new Promise(res=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.readAsArrayBuffer(file);})
   .then(buf=>{
     try{
-      const wb=XLSX.read(buf,{type:'array',cellFormula:false,cellHTML:false});
+      const wb=XLSX.read(buf,{type:'array',cellFormula:false,cellHTML:false,cellDates:true});
       const ws=wb.Sheets[wb.SheetNames[0]];
-      const raw=XLSX.utils.sheet_to_json(ws,{defval:null});
+      const raw=XLSX.utils.sheet_to_json(ws,{defval:null,raw:false});
+      // raw:false → 날짜를 자동으로 문자열로 변환
       let cnt=0;
       for(const r of raw){
+        // 컬럼명 유연하게: 품번, 발매일 (순서 무관)
         const pbn=String(r['품번']||r['모델명']||'').trim();
         const dr=r['발매일']?String(r['발매일']).trim():null;
-        if(!pbn||!dr)continue;
+        if(!pbn||!dr||pbn==='품번')continue; // 헤더행 스킵
+        // 날짜 파싱: YYYY-MM-DD, YYYY/MM/DD, YYYYMMDD, datetime string
         let ld=null;
-        if(/^\d{4}-\d{2}-\d{2}$/.test(dr))ld=dr;
-        else if(/^\d{8}$/.test(dr))ld=`${dr.slice(0,4)}-${dr.slice(4,6)}-${dr.slice(6,8)}`;
+        const cleaned=dr.replace(/\//g,'-').slice(0,10); // 앞 10자만 (시간 제거)
+        if(/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) ld=cleaned;
+        else if(/^\d{8}$/.test(dr)) ld=`${dr.slice(0,4)}-${dr.slice(4,6)}-${dr.slice(6,8)}`;
         if(!ld)continue;
-        launchDateMap[pbn]=ld;cnt++;
+        // 중복 품번: 첫 번째만 저장
+        if(!launchDateMap[pbn]){launchDateMap[pbn]=ld;cnt++;}
       }
       sv(LDK,launchDateMap);renderLaunchDate();render();
       toast(`발매일 ${cnt}개 등록 ✓`,'ok');
-    }catch(e){toast('파싱 오류','err');console.error(e);}
+    }catch(e){toast('파싱 오류: '+e.message,'err');console.error(e);}
   });
 }
 document.getElementById('fLaunch').addEventListener('change',e=>{[...e.target.files].forEach(readLaunch);e.target.value='';});
