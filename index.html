@@ -507,21 +507,41 @@ function readLaunchDateFile(file){
   new Promise(res=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.readAsArrayBuffer(file);})
   .then(buf=>{
     try{
+      // cellDates:true → JS Date 객체로 읽기, raw:true 유지
       const wb=XLSX.read(buf,{type:'array',cellFormula:false,cellHTML:false,cellDates:true});
       const ws=wb.Sheets[wb.SheetNames[0]];
-      const raw=XLSX.utils.sheet_to_json(ws,{defval:null,raw:false});
-      // raw:false → 날짜를 자동으로 문자열로 변환
+      // header:1 로 배열 형태로 읽어서 날짜 직접 처리
+      const allRows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+      if(!allRows.length){toast('파일이 비어있음','err');return;}
+      // 헤더 행 찾기 (품번 컬럼)
+      const hdr=allRows[0].map(v=>v==null?'':String(v));
+      const pbnIdx=hdr.indexOf('품번');
+      const dateIdx=hdr.indexOf('발매일');
+      if(pbnIdx<0||dateIdx<0){toast('"품번" 또는 "발매일" 컬럼 없음','err');console.log('헤더:',hdr);return;}
       let cnt=0;
-      for(const r of raw){
-        // 컬럼명 유연하게: 품번, 발매일 (순서 무관)
-        const pbn=String(r['품번']||r['모델명']||'').trim();
-        const dr=r['발매일']?String(r['발매일']).trim():null;
-        if(!pbn||!dr||pbn==='품번')continue; // 헤더행 스킵
-        // 날짜 파싱: YYYY-MM-DD, YYYY/MM/DD, YYYYMMDD, datetime string
+      for(let i=1;i<allRows.length;i++){
+        const row=allRows[i];
+        const pbn=String(row[pbnIdx]||'').trim();
+        const dateVal=row[dateIdx];
+        if(!pbn)continue;
+        // 날짜 변환: JS Date 객체, 숫자(엑셀 시리얼), 문자열 모두 처리
         let ld=null;
-        const cleaned=dr.replace(/\//g,'-').slice(0,10); // 앞 10자만 (시간 제거)
-        if(/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) ld=cleaned;
-        else if(/^\d{8}$/.test(dr)) ld=`${dr.slice(0,4)}-${dr.slice(4,6)}-${dr.slice(6,8)}`;
+        if(dateVal instanceof Date){
+          const y=dateVal.getFullYear();
+          const m=String(dateVal.getMonth()+1).padStart(2,'0');
+          const d=String(dateVal.getDate()).padStart(2,'0');
+          ld=`${y}-${m}-${d}`;
+        } else if(typeof dateVal==='number' && dateVal>40000){
+          // 엑셀 시리얼 날짜
+          const d=new Date(Date.UTC(1900,0,1)+(dateVal-2)*86400000);
+          ld=d.toISOString().slice(0,10);
+        } else if(typeof dateVal==='string' && dateVal.trim()){
+          const s=dateVal.trim();
+          // "2026-01-26" 또는 "2026-01-26 00:00:00"
+          const m=s.match(/(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
+          if(m) ld=`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+          else if(/^\d{8}$/.test(s)) ld=`${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
+        }
         if(!ld)continue;
         // 중복 품번: 첫 번째만 저장
         if(!launchDateMap[pbn]){launchDateMap[pbn]=ld;cnt++;}
