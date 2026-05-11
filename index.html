@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CT & AT 트래커</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Apple SD Gothic Neo',Pretendard,sans-serif;font-size:13px;background:#f5f6f8;color:#1a1d27;min-height:100vh}
+:root{--ac:#3a87cc;--ct:#3a87cc;--at:#7c5cbf;--up:#1a9e5c;--dn:#d94f4f;--warn:#c97a10;--surge:#e05a20;--bd:#e2e4ea;--bd2:#d0d3dc;--bg:#f5f6f8;--card:#fff;--sub:#f0f1f4;--muted:#8a90a0;--text:#1a1d27;--sub2:#4b5263;--mono:'DM Mono',monospace}
+.nav{display:flex;align-items:center;background:#fff;border-bottom:1px solid var(--bd);padding:0 24px;position:sticky;top:0;z-index:100;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.nav-logo{font-size:14px;font-weight:700;padding:15px 0;margin-right:20px;white-space:nowrap;color:var(--ac)}
+.nav-tabs{display:flex;flex:1}
+.tb{padding:15px 14px 13px;font-size:12px;font-weight:500;color:var(--muted);cursor:pointer;border:none;border-bottom:2px solid transparent;background:none;font-family:inherit;transition:all .15s}
+.tb:hover{color:var(--text)}.tb.on{color:var(--ac);border-bottom-color:var(--ac)}
+.nav-r{display:flex;gap:7px;align-items:center;margin-left:auto}
+.nb{font-size:11px;color:var(--muted);font-family:var(--mono)}
+.sync-info{font-size:10px;color:var(--muted);font-family:var(--mono)}
+.btn{padding:6px 12px;border-radius:7px;border:1px solid var(--bd2);background:#fff;color:var(--sub2);font-size:11px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .15s}
+.btn:hover{background:var(--sub)}.btn.pri{background:var(--ac);border-color:var(--ac);color:#fff}.btn.pri:hover{opacity:.88}
+.btn.red{border-color:#f3b8b8;color:var(--dn)}.btn.red:hover{background:#fff5f5}
+.spin{display:inline-block;width:12px;height:12px;border:2px solid var(--bd2);border-top-color:var(--ac);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:5px}
+@keyframes spin{to{transform:rotate(360deg)}}
+input[type=file]{display:none}.page{display:none}.page.on{display:block}
+.ctrl{display:flex;gap:9px;align-items:center;padding:9px 24px;background:#fff;border-bottom:1px solid var(--bd);flex-wrap:wrap}
+.fl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;white-space:nowrap}
+.fg{display:flex;gap:5px;align-items:center}
+.pill{padding:3px 10px;border-radius:20px;border:1px solid var(--bd2);background:transparent;color:var(--muted);font-size:11px;cursor:pointer;font-family:inherit;font-weight:500;transition:all .15s}
+.pill:hover{border-color:var(--ac);color:var(--ac)}
+.pill.a{border-color:var(--ac);color:var(--ac);background:rgba(58,135,204,.07)}
+.pill.ct{border-color:var(--ct);color:var(--ct);background:rgba(58,135,204,.07)}
+.pill.at{border-color:var(--at);color:var(--at);background:rgba(124,92,191,.07)}
+.si{background:#fff;border:1px solid var(--bd2);border-radius:7px;color:var(--text);padding:5px 10px;font-size:12px;font-family:inherit;width:160px}
+.si:focus{outline:none;border-color:var(--ac);box-shadow:0 0 0 3px rgba(58,135,204,.1)}
+select{background:#fff;border:1px solid var(--bd2);border-radius:7px;color:var(--text);padding:5px 8px;font-size:12px;font-family:inherit;cursor:pointer}
+select:focus{outline:none;border-color:var(--ac)}
+.main{padding:18px 24px;display:flex;flex-direction:column;gap:14px}
+.scards{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.sc{background:#fff;border:1px solid var(--bd);border-radius:8px;padding:13px 15px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.sc-l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;font-weight:600}
+.sc-v{font-size:20px;font-weight:700;font-family:var(--mono)}
+.sc-d{font-size:11px;margin-top:3px}
+.up{color:var(--up)}.dn{color:var(--dn)}.flat{color:var(--muted)}
+.tc{background:#fff;border:1px solid var(--bd);border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.th{display:flex;justify-content:space-between;align-items:center;padding:10px 15px;border-bottom:1px solid var(--bd)}
+.th-t{font-size:13px;font-weight:600}.th-m{font-size:11px;color:var(--muted)}
+.ts{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead tr{background:var(--sub);border-bottom:1px solid var(--bd)}
+th{padding:7px 9px;text-align:left;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;cursor:pointer;user-select:none}
+th:hover{color:var(--text)}.th-ns{cursor:default}.th-ns:hover{color:var(--muted)}
+th.sa::after{content:' ↑';color:var(--ac)}th.sd::after{content:' ↓';color:var(--ac)}
+tbody tr{border-top:1px solid var(--bd);transition:background .08s}
+tbody tr:hover{background:#f7f8fc}tbody tr.surge{background:#fff8f5}tbody tr.surge:hover{background:#fff2eb}
+td{padding:7px 9px;white-space:nowrap;vertical-align:middle}
+.bt{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700}
+.bct{background:rgba(58,135,204,.1);color:var(--ct)}.bat{background:rgba(124,92,191,.1);color:var(--at)}
+.ch{display:inline-block;padding:1px 5px;border-radius:4px;font-size:10px;background:var(--sub);color:var(--sub2);border:1px solid var(--bd)}
+.nc{display:flex;align-items:center;gap:5px;max-width:240px}
+.nl{color:var(--text);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;font-size:12px}
+.nl:hover{color:var(--ac)}
+.il{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:3px;background:var(--sub);border:1px solid var(--bd);color:var(--muted);font-size:10px;text-decoration:none;flex-shrink:0;transition:all .15s}
+.il:hover{border-color:var(--ac);color:var(--ac)}.noph{width:17px;flex-shrink:0}
+.sdot{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--surge);flex-shrink:0}
+.mono{font-family:var(--mono);font-size:12px}
+.disc{font-family:var(--mono);font-size:12px;color:var(--warn);font-weight:500}
+.rev{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.cc{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.dc{font-family:var(--mono);font-size:11px}
+.sok{font-family:var(--mono);font-size:12px;color:var(--up);font-weight:600}
+.slow{font-family:var(--mono);font-size:12px;color:var(--warn);font-weight:600}
+.sno{font-family:var(--mono);font-size:12px;color:var(--dn);font-weight:600}
+.sna{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.db{display:inline-block;padding:1px 6px;border-radius:10px;font-size:10px;font-family:var(--mono);font-weight:600;border:1px solid var(--bd);background:var(--sub);color:var(--muted)}
+.dn30{border-color:#a8e6c4;color:var(--up);background:#f0faf5}.dn90{border-color:#f5d49a;color:var(--warn);background:#fffbf0}
+.di{background:transparent;border:none;border-bottom:1px dashed var(--bd2);color:var(--muted);font-size:10px;font-family:var(--mono);width:90px;cursor:pointer;padding:1px 2px}
+.di:focus{outline:none;border-bottom-color:var(--ac);color:var(--text)}
+.ab{background:none;border:none;color:var(--muted);cursor:pointer;padding:2px 4px;font-size:12px;border-radius:3px}
+.ab:hover{color:var(--ac);background:rgba(58,135,204,.07)}
+.pager{display:flex;gap:5px;align-items:center;padding:9px 15px;border-top:1px solid var(--bd)}
+.pb{padding:3px 9px;border-radius:5px;border:1px solid var(--bd2);background:#fff;color:var(--sub2);font-size:11px;cursor:pointer;font-family:var(--mono)}
+.pb:hover:not(:disabled){border-color:var(--ac);color:var(--ac)}.pb:disabled{opacity:.3;cursor:default}
+.pi{font-size:11px;color:var(--muted);font-family:var(--mono);margin:0 4px}
+.snpi{font-size:11px;color:var(--muted);padding:7px 15px;border-top:1px solid var(--bd)}
+.sg{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px;margin-bottom:16px}
+.sc2{background:#fff;border:1px solid #f0d0c0;border-radius:8px;padding:10px 12px;cursor:pointer;transition:border-color .15s;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.sc2:hover{border-color:var(--surge)}
+.sc2-n{font-size:12px;font-weight:600;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sc2-m{display:flex;gap:6px;align-items:center;font-size:11px}
+.sbg{font-size:10px;padding:1px 6px;border-radius:10px;background:rgba(224,90,32,.1);color:var(--surge);margin-left:auto;font-weight:600;border:1px solid rgba(224,90,32,.2)}
+.mo{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;align-items:center;justify-content:center}
+.mo.on{display:flex}
+.modal{background:#fff;border:1px solid var(--bd);border-radius:12px;width:700px;max-width:95vw;padding:20px;box-shadow:0 8px 32px rgba(0,0,0,.12)}
+.mt{font-size:14px;font-weight:700;margin-bottom:3px}.ms{font-size:11px;color:var(--muted);margin-bottom:14px}
+.mc{float:right;background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px}.mc:hover{color:var(--text)}
+.cts{display:flex;gap:5px;margin-bottom:12px}
+.ct{padding:3px 10px;border-radius:5px;border:1px solid var(--bd2);background:transparent;color:var(--muted);font-size:11px;cursor:pointer;font-family:inherit}
+.ct.on{background:var(--ac);border-color:var(--ac);color:#fff}
+.cw{position:relative;height:230px}
+.sp{padding:20px 24px}.spg{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+.card{background:#fff;border:1px solid var(--bd);border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.ch2{padding:10px 15px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;background:var(--sub)}
+.ct2{font-size:13px;font-weight:600}.cb{padding:15px}
+.dz{border:2px dashed var(--bd2);border-radius:8px;padding:26px 18px;text-align:center;cursor:pointer;transition:all .2s;background:var(--sub)}
+.dz:hover,.dz.drag{border-color:var(--ac);background:rgba(58,135,204,.04)}
+.dz h3{font-size:13px;font-weight:600;margin-bottom:4px}.dz p{font-size:11px;color:var(--muted);line-height:1.8}
+.dz code{background:#fff;padding:1px 5px;border-radius:3px;font-family:var(--mono);font-size:10px;color:var(--warn);border:1px solid var(--bd2)}
+.fr{display:flex;gap:6px;margin-top:11px;flex-wrap:wrap}
+.fr input{flex:1;min-width:70px;background:#fff;border:1px solid var(--bd2);border-radius:7px;color:var(--text);padding:5px 8px;font-size:11px;font-family:inherit}
+.fr input:focus{outline:none;border-color:var(--ac)}
+.sw{max-height:460px;overflow-y:auto}
+.st{width:100%;border-collapse:collapse;font-size:12px}
+.st th{padding:7px 9px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;background:var(--sub);border-bottom:1px solid var(--bd);position:sticky;top:0;font-weight:600}
+.st td{padding:7px 9px;border-bottom:1px solid var(--bd)}.st tr:last-child td{border-bottom:none}
+.st input[type=date]{background:transparent;border:none;border-bottom:1px dashed var(--bd2);color:var(--text);font-family:var(--mono);font-size:10px;padding:1px 2px;cursor:pointer}
+.st input[type=date]:focus{outline:none;border-bottom-color:var(--ac)}
+.rd{background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:1px 4px;border-radius:3px}
+.rd:hover{color:var(--dn);background:#fff5f5}
+.ib{background:rgba(58,135,204,.05);border:1px solid rgba(58,135,204,.15);border-radius:8px;padding:10px 13px;font-size:12px;margin-bottom:14px;line-height:1.8;color:var(--sub2)}
+.ib code{background:#fff;padding:1px 5px;border-radius:3px;font-family:var(--mono);font-size:10px;color:var(--warn);border:1px solid var(--bd2)}
+.empty{padding:60px 24px;text-align:center;color:var(--muted)}
+.empty h2{font-size:14px;color:var(--sub2);font-weight:600;margin-bottom:6px}
+.ei{font-size:30px;margin-bottom:10px;opacity:.4}.esm{padding:36px 18px;text-align:center;color:var(--muted);font-size:12px}
+.toast{position:fixed;bottom:20px;right:20px;background:var(--text);color:#fff;border-radius:8px;padding:9px 14px;font-size:12px;opacity:0;transform:translateY(8px);transition:all .3s;pointer-events:none;z-index:999;box-shadow:0 4px 16px rgba(0,0,0,.15)}
+.toast.on{opacity:1;transform:translateY(0)}.toast.ok{background:var(--up)}.toast.err{background:var(--dn)}
+</style>
+</head>
+<body>
+<div class="nav">
+  <div class="nav-logo">CT &amp; AT 트래커</div>
+  <div class="nav-tabs">
+    <button class="tb on" onclick="gPage('tracker',this)">📊 트래커</button>
+    <button class="tb" onclick="gPage('surge',this)">🔥 급상승</button>
+    <button class="tb" onclick="gPage('launch',this)">📅 발매일/정상가</button>
+    <button class="tb" onclick="gPage('stock',this)">📦 재고</button>
+  </div>
+  <div class="nav-r">
+    <span class="nb" id="snapBadge">스냅샷 0개</span>
+    <span class="sync-info" id="syncInfo"></span>
+    <button class="btn pri" onclick="syncData()">🔄 데이터 새로고침</button>
+    <button class="btn" onclick="document.getElementById('fDaily').click()">📂 직접 업로드</button>
+    <input type="file" id="fDaily" accept=".xlsx,.xls" multiple>
+    <button class="btn red" onclick="clearAll()">초기화</button>
+  </div>
+</div>
+
+<!-- TRACKER -->
+<div class="page on" id="page-tracker">
+  <div class="ctrl">
+    <div class="fg"><span class="fl">브랜드</span>
+      <button class="pill a" onclick="setF('brand','all',this)">전체</button>
+      <button class="pill" onclick="setF('brand','시티브리즈',this)">시티브리즈</button>
+      <button class="pill" onclick="setF('brand','아티드',this)">아티드</button>
+    </div>
+    <div class="fg"><span class="fl">채널</span>
+      <button class="pill a" id="chAll" onclick="setChAll(this)">전체</button>
+      <span id="chPills"></span>
+    </div>
+    <div class="fg"><span class="fl">날짜</span>
+      <select id="dateSel" onchange="render()"><option value="latest">최근</option></select>
+    </div>
+    <input class="si" id="searchQ" placeholder="상품명 / 코드 / 품번" oninput="render()">
+    <div class="fg" style="margin-left:auto"><span class="fl">정렬</span>
+      <select id="sortCol" onchange="onSort()">
+        <option value="lk">좋아요수</option><option value="pr">판매가</option>
+        <option value="dc">할인율</option><option value="rv">리뷰수</option>
+        <option value="ld1">♥ 1일</option><option value="ld3">♥ 3일</option>
+        <option value="ld7">♥ 7일</option><option value="pd1">가격 1일</option>
+        <option value="pd3">가격 3일</option><option value="stk">재고</option>
+      </select>
+      <select id="sortDir" onchange="onSort()">
+        <option value="desc">내림차순 ↓</option><option value="asc">오름차순 ↑</option>
+      </select>
+    </div>
+  </div>
+  <div class="main">
+    <div class="scards">
+      <div class="sc"><div class="sc-l">추적 상품</div><div class="sc-v" id="sc-cnt">—</div></div>
+      <div class="sc"><div class="sc-l">평균 좋아요</div><div class="sc-v" id="sc-lk">—</div><div class="sc-d" id="sd-lk"></div></div>
+      <div class="sc"><div class="sc-l">평균 할인율</div><div class="sc-v" id="sc-dc">—</div><div class="sc-d" id="sd-dc"></div></div>
+      <div class="sc"><div class="sc-l">♥ TOP</div><div class="sc-v" id="sc-top" style="font-size:11px;margin-top:3px;line-height:1.5">—</div></div>
+      <div class="sc"><div class="sc-l">누적 날짜</div><div class="sc-v" id="sc-days">—</div></div>
+    </div>
+    <div class="tc">
+      <div class="th"><div class="th-t">상품 목록</div><div class="th-m" id="tMeta"></div></div>
+      <div class="ts" id="tCon"><div class="empty"><div class="ei">📊</div><h2>🔄 데이터 새로고침을 눌러주세요</h2></div></div>
+      <div class="pager" id="pager" style="display:none"></div>
+      <div class="snpi" id="snpi" style="display:none"></div>
+    </div>
+  </div>
+</div>
+
+<!-- SURGE -->
+<div class="page" id="page-surge">
+  <div class="ctrl">
+    <div class="fg"><span class="fl">브랜드</span>
+      <button class="pill a" onclick="setF('sbrand','all',this)">전체</button>
+      <button class="pill" onclick="setF('sbrand','시티브리즈',this)">시티브리즈</button>
+      <button class="pill" onclick="setF('sbrand','아티드',this)">아티드</button>
+    </div>
+    <div class="fg"><span class="fl">기간</span>
+      <select id="sDays" onchange="renderSurge()"><option value="3" selected>3일</option><option value="7">7일</option><option value="14">14일</option></select>
+    </div>
+    <div class="fg"><span class="fl">최소 증가</span>
+      <select id="sMin" onchange="renderSurge()">
+        <option value="5">+5</option><option value="10">+10</option>
+        <option value="50">+50</option><option value="100" selected>+100</option><option value="200">+200</option>
+      </select>
+    </div>
+  </div>
+  <div class="main" id="surgeMain"><div class="empty"><div class="ei">🔥</div><h2>데이터 없음</h2></div></div>
+</div>
+
+<!-- LAUNCH -->
+<div class="page" id="page-launch">
+  <div class="sp"><div class="spg">
+    <div class="card">
+      <div class="ch2"><div class="ct2">📅 발매일 / 정상가</div></div>
+      <div class="cb">
+        <div class="dz" id="lDrop" onclick="document.getElementById('fLaunch').click()">
+          <h3>linkage_modify 업로드</h3>
+          <p><code>쇼핑몰상품코드</code>·<code>모델명</code>·<code>판매가</code>·<code>발매일</code><br>중복 코드 자동 스킵</p>
+          <button class="btn" style="margin-top:10px" onclick="event.stopPropagation();dlTpl()">⬇ 템플릿</button>
+        </div>
+        <input type="file" id="fLaunch" accept=".xlsx,.xls">
+        <div style="margin-top:13px;padding-top:13px;border-top:1px solid var(--bd)">
+          <div style="font-size:10px;color:var(--muted);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.06em">직접 추가</div>
+          <div class="fr">
+            <input type="text" id="mCode" placeholder="쇼핑몰상품코드">
+            <input type="text" id="mModel" placeholder="모델명">
+            <input type="number" id="mPrice" placeholder="정상가">
+            <input type="date" id="mDate">
+            <button class="btn pri" onclick="addManual()">추가</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ch2">
+        <div class="ct2">목록</div>
+        <div style="display:flex;gap:7px;align-items:center">
+          <span style="font-size:11px;color:var(--muted)" id="lSum">0개</span>
+          <button class="btn" onclick="exportLaunch()">엑셀 내보내기</button>
+        </div>
+      </div>
+      <div class="sw" id="lTbl"><div class="esm">데이터 없음</div></div>
+    </div>
+  </div></div>
+</div>
+
+<!-- STOCK -->
+<div class="page" id="page-stock">
+  <div class="sp">
+    <div class="ib"><strong>재고 파일 포맷</strong> — 창고별_가용재고 형식<br>헤더 2행 자동처리 · <code>품번</code>+<code>가용재고</code> 컬럼 · 품번별 합산 · 업로드 시 <strong>항상 최신으로 완전 교체</strong></div>
+    <div class="spg">
+      <div class="card">
+        <div class="ch2"><div class="ct2">📦 재고 업로드</div></div>
+        <div class="cb">
+          <div class="dz" id="sDrop" onclick="document.getElementById('fStock').click()">
+            <h3>창고별_가용재고 업로드</h3>
+            <p><code>품번</code>·<code>가용재고</code> 컬럼<br>헤더 2행 자동처리</p>
+          </div>
+          <input type="file" id="fStock" accept=".xlsx,.xls">
+          <div style="margin-top:10px;font-size:11px;color:var(--muted)" id="stInfo"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="ch2">
+          <div class="ct2">재고 현황</div>
+          <div style="display:flex;gap:7px;align-items:center">
+            <span style="font-size:11px;color:var(--muted)" id="stSum">0개</span>
+            <button class="btn" onclick="exportStock()">엑셀 내보내기</button>
+          </div>
+        </div>
+        <div class="sw" id="stTbl"><div class="esm">재고 파일 업로드 필요</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="mo" id="mOver" onclick="if(event.target===this)this.classList.remove('on')">
+  <div class="modal">
+    <button class="mc" onclick="document.getElementById('mOver').classList.remove('on')">✕</button>
+    <div class="mt" id="mTit"></div><div class="ms" id="mSub"></div>
+    <div class="cts">
+      <button class="ct on" onclick="swC('lk',this)">좋아요</button>
+      <button class="ct" onclick="swC('pr',this)">가격</button>
+      <button class="ct" onclick="swC('dc',this)">할인율</button>
+      <button class="ct" onclick="swC('rv',this)">리뷰수</button>
+    </div>
+    <div class="cw"><canvas id="tChart"></canvas></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ── STATE ──────────────────────────────────────────
+let snapshots={}, launchMap={}, stockMap={};
+let filters={brand:'all',channel:'all',sbrand:'all'};
+let sCol='lk', sDir='desc', curPage=1;
+const PG=50;
+let myChart=null, cCode=null, cMall=null, cMetric='lk';
+const SK='ctat_s2', LK='ctat_l2', STK='ctat_k2';
+
+// ── 저장/로드 ──────────────────────────────────────
+function sv(key,data){try{localStorage.setItem(key,JSON.stringify(data));}catch(e){toast('저장 실패','err');}}
+function saveAll(){sv(SK,snapshots);sv(LK,launchMap);sv(STK,stockMap);}
+function loadAll(){
+  try{
+    const s=localStorage.getItem(SK),l=localStorage.getItem(LK),k=localStorage.getItem(STK);
+    if(s)snapshots=JSON.parse(s);
+    if(l)launchMap=JSON.parse(l);
+    if(k)stockMap=JSON.parse(k);
+  }catch(e){}
+}
+function clearAll(){
+  if(!confirm('모든 데이터 초기화?'))return;
+  snapshots={};launchMap={};stockMap={};
+  [SK,LK,STK].forEach(k=>localStorage.removeItem(k));
+  render();renderLaunch();renderStock();updBadge();
+  toast('초기화 완료');
+}
+
+// ── GitHub Pages 자동 동기화 ───────────────────────
+// tracker_data.json을 같은 경로에서 fetch
+async function syncData(){
+  const si=document.getElementById('syncInfo');
+  si.innerHTML='<span class="spin"></span>동기화 중...';
+  try{
+    // 현재 페이지 기준 경로
+    const base=window.location.href.replace(/\/[^/]*$/, '/');
+    const url=base+'tracker_data.json?t='+Date.now();
+    const res=await fetch(url);
+    if(!res.ok)throw new Error('파일 없음 ('+res.status+')');
+    const d=await res.json();
+    mergeData(d);
+    const ts=new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
+    si.textContent='✓ '+ts+' 동기화됨';
+    toast('데이터 업데이트 완료','ok');
+  }catch(e){
+    si.textContent='⚠ 동기화 실패';
+    toast('동기화 실패: '+e.message,'err');
+    console.error(e);
+  }
+}
+
+function mergeData(d){
+  // 좋아요 스냅샷: 날짜별 누적, 중복(코드+채널) 제거
+  const snap=d.snapshots||d.s||{};
+  for(const [date,rows] of Object.entries(snap)){
+    if(!snapshots[date]){
+      // 새 날짜: 중복 제거 후 추가
+      const seen=new Set(); const clean=[];
+      for(const r of rows){
+        const k=(r.cd||r['상품코드'])+'|'+(r.ml||r['쇼핑몰']);
+        if(seen.has(k))continue;
+        seen.add(k);
+        // 필드 정규화 (긴키 → 단축키)
+        clean.push({
+          ml:r.ml||r['쇼핑몰']||'',br:r.br||r['브랜드']||'',
+          cd:r.cd||r['상품코드']||'',nm:r.nm||r['상품명']||'',
+          pr:r.pr??r['가격']??null,dc:r.dc??r['할인율']??null,
+          lk:r.lk??r['좋아요수']??null,rv:r.rv??r['리뷰수']??null,
+          ur:r.ur||r['URL']||''
+        });
+      }
+      snapshots[date]=clean;
+    }
+    // 이미 있는 날짜는 스킵 (기존 데이터 보존)
+  }
+  // linkage: 없는 코드만 추가 (중복 스킵)
+  const lm=d.launchMap||d.l||{};
+  for(const [code,info] of Object.entries(lm)){
+    if(!launchMap[code]) launchMap[code]={d:info.d||null,p:info.p||null,m:info.m||''};
+  }
+  // 재고: 항상 완전 교체 (최신 파일이 가장 정확)
+  const sm=d.stockMap||d.k||{};
+  if(Object.keys(sm).length>0) stockMap=sm;
+  saveAll();updChPills();updDateSel();render();renderLaunch();renderStock();updBadge();
+}
+
+// ── 일별 파일 직접 업로드 ─────────────────────────
+document.getElementById('fDaily').addEventListener('change',e=>{[...e.target.files].forEach(readDaily);e.target.value='';});
+function readDaily(file){
+  new Promise(res=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.readAsArrayBuffer(file);})
+  .then(buf=>{
+    try{
+      const wb=XLSX.read(buf,{type:'array',cellFormula:false,cellHTML:false});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const raw=XLSX.utils.sheet_to_json(ws,{defval:null});
+      if(!raw.length){toast('데이터 없음','err');return;}
+      const dk=exDate(file.name,raw[0]?.['수집일시']);
+      if(snapshots[dk]){toast(`${dk} 이미 존재 — 스킵`,'err');return;}
+      const seen=new Set();const rows=[];
+      for(const r of raw){
+        const cd=String(r['상품코드']||'').trim();
+        const ml=String(r['쇼핑몰']||'').trim();
+        if(!cd)continue;
+        const k=`${cd}|${ml}`;
+        if(seen.has(k))continue;
+        seen.add(k);
+        rows.push({ml,br:String(r['브랜드']||'').trim(),cd,nm:String(r['상품명']||'').trim(),
+          pr:pInt(r['가격']),dc:pInt(r['할인율']),
+          lk:r['좋아요수']!=null?+r['좋아요수']:null,
+          rv:r['리뷰수']!=null?+r['리뷰수']:null,
+          ur:String(r['URL']||'').trim()});
+      }
+      snapshots[dk]=rows;
+      sv(SK,snapshots);updChPills();updDateSel();render();updBadge();
+      toast(`${dk} — ${rows.length}개 로드 ✓`,'ok');
+    }catch(e){toast('파싱 오류: '+file.name,'err');console.error(e);}
+  });
+}
+
+// ── linkage 업로드 ────────────────────────────────
+setupDrop('lDrop','fLaunch',readLaunch);
+document.getElementById('fLaunch').addEventListener('change',e=>{[...e.target.files].forEach(readLaunch);e.target.value='';});
+function readLaunch(file){
+  new Promise(res=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.readAsArrayBuffer(file);})
+  .then(buf=>{
+    try{
+      const wb=XLSX.read(buf,{type:'array',cellFormula:false,cellHTML:false});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const raw=XLSX.utils.sheet_to_json(ws,{defval:null});
+      let added=0,skipped=0;
+      for(const r of raw){
+        const code=String(r['쇼핑몰상품코드']||r['상품코드']||'').trim();
+        if(!code)continue;
+        if(launchMap[code]){skipped++;continue;} // 중복 스킵
+        const model=String(r['모델명']||r['품번']||'').trim();
+        const price=pInt(r['판매가']||r['정상가']);
+        const dr=r['발매일']?String(r['발매일']).trim():null;
+        let ld=null;
+        if(dr){if(/^\d{4}-\d{2}-\d{2}$/.test(dr))ld=dr;else if(/^\d{8}$/.test(dr))ld=`${dr.slice(0,4)}-${dr.slice(4,6)}-${dr.slice(6,8)}`;}
+        launchMap[code]={d:ld,p:price,m:model};
+        added++;
+      }
+      sv(LK,launchMap);render();renderLaunch();
+      toast(`${added}개 추가, ${skipped}개 중복 스킵`,'ok');
+    }catch(e){toast('파싱 오류','err');console.error(e);}
+  });
+}
+
+// ── 재고 업로드 ───────────────────────────────────
+setupDrop('sDrop','fStock',readStock);
+document.getElementById('fStock').addEventListener('change',e=>{[...e.target.files].forEach(readStock);e.target.value='';});
+function readStock(file){
+  const snapBak=JSON.stringify(snapshots);
+  const launchBak=JSON.stringify(launchMap);
+  new Promise(res=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.readAsArrayBuffer(file);})
+  .then(buf=>{
+    try{
+      const wb=XLSX.read(buf,{type:'array',cellFormula:false,cellHTML:false,cellNF:false,cellStyles:false});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const ref=ws['!ref'];if(!ref){toast('시트 데이터 없음','err');return;}
+      const rng=XLSX.utils.decode_range(ref);
+      let hRow=-1,pCol=-1,qCol=-1;
+      for(let ri=0;ri<=Math.min(4,rng.e.r);ri++){
+        for(let ci=0;ci<=rng.e.c;ci++){
+          const cell=ws[XLSX.utils.encode_cell({r:ri,c:ci})];
+          if(cell&&cell.v==='품번'){hRow=ri;pCol=ci;break;}
+        }
+        if(hRow>=0)break;
+      }
+      if(hRow<0){toast('"품번" 컬럼 없음','err');return;}
+      for(let ci=0;ci<=rng.e.c;ci++){
+        const cell=ws[XLSX.utils.encode_cell({r:hRow,c:ci})];
+        if(cell&&cell.v==='가용재고'){qCol=ci;break;}
+      }
+      if(qCol<0){toast('"가용재고" 컬럼 없음','err');return;}
+      const acc={};
+      for(let ri=hRow+1;ri<=rng.e.r;ri++){
+        const pc=ws[XLSX.utils.encode_cell({r:ri,c:pCol})];
+        const qc=ws[XLSX.utils.encode_cell({r:ri,c:qCol})];
+        if(!pc)continue;
+        const pbn=String(pc.v||'').trim();
+        if(!pbn||pbn==='품번')continue;
+        acc[pbn]=(acc[pbn]||0)+(parseFloat(qc?.v||0)||0);
+      }
+      // 백업 복구
+      if(Object.keys(snapshots).length===0&&snapBak!=='{}')snapshots=JSON.parse(snapBak);
+      if(Object.keys(launchMap).length===0&&launchBak!=='{}')launchMap=JSON.parse(launchBak);
+      // 재고 완전 교체
+      stockMap={};
+      for(const[k,v]of Object.entries(acc))stockMap[k]=Math.round(v);
+      sv(SK,snapshots);sv(LK,launchMap);sv(STK,stockMap);
+      renderStock();render();updBadge();
+      document.getElementById('stInfo').textContent=`${file.name} · ${Object.keys(stockMap).length}개 품번`;
+      toast(`재고 ${Object.keys(stockMap).length}개 품번 로드 ✓`,'ok');
+    }catch(e){toast('재고 오류: '+e.message,'err');console.error(e);}
+  });
+}
+
+function setupDrop(dId,iId,fn){
+  const el=document.getElementById(dId);
+  el.addEventListener('dragover',e=>{e.preventDefault();el.classList.add('drag');});
+  el.addEventListener('dragleave',()=>el.classList.remove('drag'));
+  el.addEventListener('drop',e=>{e.preventDefault();el.classList.remove('drag');[...e.dataTransfer.files].filter(f=>f.name.match(/\.xlsx?$/i)).forEach(fn);});
+}
+
+// ── 헬퍼 ──────────────────────────────────────────
+const dates=()=>Object.keys(snapshots).sort();
+const latest=()=>{const d=dates();return d[d.length-1]||null;};
+function prevN(dt,n){const d=dates(),i=d.indexOf(dt);return i>=n?d[i-n]:null;}
+function exDate(fn,ct){
+  const m=fn.match(/(\d{4})(\d{2})(\d{2})/);if(m)return`${m[1]}-${m[2]}-${m[3]}`;
+  if(ct){const m2=String(ct).match(/(\d{4})-(\d{2})-(\d{2})/);if(m2)return`${m2[1]}-${m2[2]}-${m2[3]}`;}
+  return new Date().toISOString().slice(0,10);
+}
+function pInt(v){if(v==null)return null;const s=String(v).replace(/[^\d]/g,'');return s?parseInt(s):null;}
+function daysEl(ds){
+  if(!ds)return'';
+  const n=Math.floor((new Date()-new Date(ds))/86400000);
+  if(n<0)return'<span class="db">예정</span>';
+  return`<span class="db ${n<30?'dn30':n<90?'dn90':''}">D+${n}</span>`;
+}
+function dH(v,unit=''){
+  if(v==null)return'<span class="flat">—</span>';
+  if(v===0)return'<span class="flat">0</span>';
+  return`<span class="${v>0?'up':'dn'}">${v>0?'+':''}${v.toLocaleString()}${unit}</span>`;
+}
+function esc(s){return String(s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');}
+function updBadge(){document.getElementById('snapBadge').textContent=`스냅샷 ${dates().length}개`;}
+
+// ── 필터 ──────────────────────────────────────────
+function setF(key,val,btn){
+  filters[key]=val;
+  const g=btn.closest('.fg')||btn.parentElement;
+  g.querySelectorAll('.pill').forEach(p=>p.className='pill');
+  btn.className='pill '+(val==='all'?'a':val==='시티브리즈'?'ct':'at');
+  curPage=1;if(key==='sbrand')renderSurge();else render();
+}
+function setChAll(btn){filters.channel='all';document.querySelectorAll('#chPills .pill').forEach(p=>p.className='pill');btn.className='pill a';curPage=1;render();}
+function setChF(val,btn){filters.channel=val;document.getElementById('chAll').className='pill';document.querySelectorAll('#chPills .pill').forEach(p=>p.className='pill');btn.className='pill a';curPage=1;render();}
+function updChPills(){const chs=[...new Set(Object.values(snapshots).flat().map(r=>r.ml))].sort();document.getElementById('chPills').innerHTML=chs.map(c=>`<button class="pill" onclick="setChF('${c}',this)">${c}</button>`).join('');}
+function updDateSel(){const sel=document.getElementById('dateSel');sel.innerHTML='<option value="latest">최근</option>'+dates().map(d=>`<option value="${d}">${d}</option>`).join('');}
+function selDate(){const v=document.getElementById('dateSel').value;return v==='latest'?latest():v;}
+function onSort(){sCol=document.getElementById('sortCol').value;sDir=document.getElementById('sortDir').value;curPage=1;render();}
+function setSort(col){if(sCol===col)sDir=sDir==='asc'?'desc':'asc';else{sCol=col;sDir='desc';}document.getElementById('sortCol').value=sCol;document.getElementById('sortDir').value=sDir;curPage=1;render();}
+function filtered(date){
+  let rows=snapshots[date]||[];
+  if(filters.brand!=='all')rows=rows.filter(r=>r.br===filters.brand);
+  if(filters.channel!=='all')rows=rows.filter(r=>r.ml===filters.channel);
+  const q=document.getElementById('searchQ').value.trim().toLowerCase();
+  if(q)rows=rows.filter(r=>{const m=(launchMap[r.cd]?.m||'').toLowerCase();return r.nm.toLowerCase().includes(q)||r.cd.toLowerCase().includes(q)||m.includes(q);});
+  return rows;
+}
+
+// ── DELTA ─────────────────────────────────────────
+function dN(cd,ml,date,field,n){
+  const d=dates(),i=d.indexOf(date);if(i<n)return null;
+  const pr=(snapshots[d[i-n]]||[]).find(r=>r.cd===cd&&r.ml===ml);
+  const cr=(snapshots[date]||[]).find(r=>r.cd===cd&&r.ml===ml);
+  if(!pr||!cr)return null;
+  const a=cr[field],b=pr[field];return(a!=null&&b!=null)?a-b:null;
+}
+function getInfo(cd){return launchMap[cd]||null;}
+function getStock(cd){const i=getInfo(cd);if(!i||!i.m)return null;const q=stockMap[i.m];return q!=null?q:null;}
+
+// ── SURGE ─────────────────────────────────────────
+function calcSurge(nD,minD){
+  const date=latest();if(!date)return[];
+  const prev=prevN(date,nD);if(!prev)return[];
+  return(snapshots[date]||[]).filter(r=>{
+    if(filters.sbrand!=='all'&&r.br!==filters.sbrand)return false;
+    if(r.lk==null)return false;
+    const pr=(snapshots[prev]||[]).find(p=>p.cd===r.cd&&p.ml===r.ml);
+    return pr&&pr.lk!=null&&(r.lk-pr.lk)>=minD;
+  }).map(r=>{
+    const pr=(snapshots[prev]||[]).find(p=>p.cd===r.cd&&p.ml===r.ml);
+    const delta=r.lk-pr.lk;
+    return{...r,delta,pct:pr.lk>0?Math.round(delta/pr.lk*100):null,prevLk:pr.lk};
+  }).sort((a,b)=>b.delta-a.delta);
+}
+function renderSurge(){
+  const nD=+document.getElementById('sDays').value,minD=+document.getElementById('sMin').value;
+  const items=calcSurge(nD,minD),el=document.getElementById('surgeMain');
+  if(!dates().length){el.innerHTML='<div class="empty"><div class="ei">🔥</div><h2>데이터 없음</h2></div>';return;}
+  if(!items.length){el.innerHTML=`<div class="empty"><div class="ei">💤</div><h2>이슈사항 없음</h2><p>${nD}일간 +${minD} 이상 없음</p></div>`;return;}
+  const cards=items.map(r=>{
+    const bc=r.br==='시티브리즈'?'bct':'bat',bs=r.br==='시티브리즈'?'CT':'AT';
+    return`<div class="sc2" onclick="openChart('${r.cd}','${r.ml}','${esc(r.nm)}')">
+      <div class="sc2-n"><span class="bt ${bc}" style="margin-right:4px">${bs}</span>${r.nm}</div>
+      <div class="sc2-m"><span style="color:var(--muted)">${r.ml}</span>
+        <span style="color:var(--surge);font-family:var(--mono);font-weight:700">+${r.delta}</span>
+        ${r.pct!=null?`<span style="color:var(--muted);font-family:var(--mono)">(+${r.pct}%)</span>`:''}
+        <span class="sbg">이슈사항 검토</span>
+        ${r.ur?`<a href="${r.ur}" target="_blank" style="color:var(--muted);font-size:11px;margin-left:auto" onclick="event.stopPropagation()">↗</a>`:''}
+      </div></div>`;
+  }).join('');
+  const trows=items.map(r=>{
+    const bc=r.br==='시티브리즈'?'bct':'bat',bs=r.br==='시티브리즈'?'CT':'AT';
+    const info=getInfo(r.cd)||{},stk=getStock(r.cd);
+    const sc=stk!=null?(stk>10?'sok':stk>0?'slow':'sno'):'sna';
+    return`<tr class="surge"><td><span class="bt ${bc}">${bs}</span></td><td><span class="ch">${r.ml}</span></td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;font-size:12px">${r.nm}</td>
+      <td class="cc">${info.m||'—'}</td>
+      <td class="mono">${r.lk.toLocaleString()}</td><td class="mono" style="color:var(--muted)">${r.prevLk.toLocaleString()}</td>
+      <td style="color:var(--surge);font-family:var(--mono);font-weight:700">+${r.delta}</td>
+      <td style="color:var(--surge);font-family:var(--mono)">${r.pct!=null?'+'+r.pct+'%':'—'}</td>
+      <td class="mono">${info.p!=null?info.p.toLocaleString()+'원':'—'}</td>
+      <td class="mono">${r.pr!=null?r.pr.toLocaleString()+'원':'—'}</td>
+      <td><span class="${sc}">${stk!=null?stk:'—'}</span></td>
+      <td>${info.d?daysEl(info.d):'—'}</td>
+      <td>${r.ur?`<a href="${r.ur}" target="_blank" class="ab">↗</a>`:'—'}</td>
+      <td><button class="ab" onclick="openChart('${r.cd}','${r.ml}','${esc(r.nm)}')">📈</button></td></tr>`;
+  }).join('');
+  el.innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:13px">
+    <span style="font-size:18px">🔥</span>
+    <div><div style="font-size:13px;font-weight:700;color:var(--surge)">이슈사항 검토 ${items.length}개</div>
+    <div style="font-size:11px;color:var(--muted)">최근 ${nD}일 · +${minD} 이상</div></div></div>
+  <div class="sg">${cards}</div>
+  <div class="tc"><div class="th"><div class="th-t">상세</div><div class="th-m">${items.length}개</div></div>
+  <div class="ts"><table><thead><tr><th>브랜드</th><th>채널</th><th>상품명</th><th>품번</th>
+    <th>현재♥</th><th>이전♥</th><th>증가량</th><th>증가율</th>
+    <th>정상가</th><th>판매가</th><th>재고</th><th>D+</th><th>링크</th><th></th>
+  </tr></thead><tbody>${trows}</tbody></table></div></div>`;
+}
+
+// ── SUMMARY ───────────────────────────────────────
+function renderSummary(date){
+  const rows=filtered(date);
+  document.getElementById('sc-cnt').textContent=rows.length;
+  document.getElementById('sc-days').textContent=dates().length+'일';
+  const lr=rows.filter(r=>r.lk!=null),al=lr.length?Math.round(lr.reduce((a,r)=>a+r.lk,0)/lr.length):null;
+  document.getElementById('sc-lk').textContent=al!=null?al.toLocaleString():'—';
+  const dr=rows.filter(r=>r.dc!=null),ad=dr.length?Math.round(dr.reduce((a,r)=>a+r.dc,0)/dr.length):null;
+  document.getElementById('sc-dc').textContent=ad!=null?ad+'%':'—';
+  const prev=prevN(date,1);
+  if(prev){
+    const pr2=filtered(prev);
+    if(al!=null){const pl=pr2.filter(r=>r.lk!=null);const pa=pl.length?Math.round(pl.reduce((a,r)=>a+r.lk,0)/pl.length):null;if(pa!=null)document.getElementById('sd-lk').innerHTML=dH(al-pa);}
+    if(ad!=null){const pd=pr2.filter(r=>r.dc!=null);const pa=pd.length?Math.round(pd.reduce((a,r)=>a+r.dc,0)/pd.length):null;if(pa!=null)document.getElementById('sd-dc').innerHTML=dH(ad-pa,'%');}
+  }
+  const top=[...rows].filter(r=>r.lk!=null).sort((a,b)=>b.lk-a.lk)[0];
+  document.getElementById('sc-top').textContent=top?`♥ ${top.lk} · ${top.nm.slice(0,20)}`:'—';
+}
+
+// ── TABLE ─────────────────────────────────────────
+const COLS=[
+  {k:'br',l:'브랜드',w:'65px'},{k:'ml',l:'채널',w:'65px'},
+  {k:'cd',l:'채널코드',w:'80px'},{k:'model',l:'품번',w:'85px',ns:1},
+  {k:'nm',l:'상품명',w:'240px'},
+  {k:'np',l:'정상가',w:'75px',ns:1},{k:'pr',l:'판매가',w:'80px'},
+  {k:'dc',l:'할인율',w:'60px'},
+  {k:'pd1',l:'가격↕1일',w:'76px'},{k:'pd3',l:'가격↕3일',w:'76px'},
+  {k:'lk',l:'좋아요',w:'68px'},
+  {k:'ld1',l:'♥1일',w:'58px'},{k:'ld3',l:'♥3일',w:'58px'},{k:'ld7',l:'♥7일',w:'58px'},
+  {k:'rv',l:'리뷰',w:'52px'},{k:'stk',l:'재고',w:'58px'},
+  {k:'launch',l:'발매일',w:'94px',ns:1},{k:'days',l:'D+',w:'46px',ns:1},
+  {k:'chart',l:'',w:'28px',ns:1}
+];
+function renderTable(date){
+  const surgeSet=new Set(calcSurge(3,100).map(r=>r.cd+'|'+r.ml));
+  let rows=filtered(date).map(r=>{
+    const info=getInfo(r.cd)||{},c=r.cd,m=r.ml;
+    return{...r,ld1:dN(c,m,date,'lk',1),ld3:dN(c,m,date,'lk',3),ld7:dN(c,m,date,'lk',7),
+      pd1:dN(c,m,date,'pr',1),pd3:dN(c,m,date,'pr',3),
+      stk:getStock(c),_model:info.m||'',_np:info.p||null,_launch:info.d||''};
+  });
+  const SORT_MAP={ld1:'ld1',ld3:'ld3',ld7:'ld7',pd1:'pd1',pd3:'pd3',stk:'stk'};
+  rows.sort((a,b)=>{
+    const sk=SORT_MAP[sCol]||sCol;
+    let va=a[sk]??(sCol==='stk'?-1:null),vb=b[sk]??(sCol==='stk'?-1:null);
+    if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return -1;
+    return sDir==='asc'?(va>vb?1:-1):(va<vb?1:-1);
+  });
+  const total=rows.length;
+  document.getElementById('tMeta').textContent=`${total}개 상품`;
+  if(!total){document.getElementById('tCon').innerHTML='<div class="empty"><div class="ei">🔍</div><h2>조건에 맞는 상품 없음</h2></div>';document.getElementById('pager').style.display='none';return;}
+  const pgRows=rows.slice((curPage-1)*PG,curPage*PG);
+  const thead=COLS.map(c=>{
+    const sc=sCol===c.k?(sDir==='asc'?'sa':'sd'):'',ns=c.ns?'th-ns':'';
+    const oc=c.ns?'':`onclick="setSort('${c.k}')"`;
+    return`<th ${oc} class="${sc} ${ns}" style="min-width:${c.w}">${c.l}</th>`;
+  }).join('');
+  const tbody=pgRows.map(r=>{
+    const isSurge=surgeSet.has(r.cd+'|'+r.ml);
+    const bc=r.br==='시티브리즈'?'bct':'bat',bs=r.br==='시티브리즈'?'CT':'AT';
+    const sc=r.stk!=null?(r.stk>10?'sok':r.stk>0?'slow':'sno'):'sna';
+    const lnk=r.ur?`<a href="${r.ur}" target="_blank" class="il">↗</a>`:`<span class="noph"></span>`;
+    const dot=isSurge?'<span class="sdot"></span>':'';
+    return`<tr${isSurge?' class="surge"':''}>
+      <td><span class="bt ${bc}">${bs}</span></td><td><span class="ch">${r.ml}</span></td>
+      <td class="cc">${r.cd}</td><td class="cc">${r._model||'—'}</td>
+      <td><div class="nc">${lnk}${dot}<a ${r.ur?`href="${r.ur}" target="_blank"`:''}class="nl" title="${r.nm}">${r.nm}</a></div></td>
+      <td class="mono">${r._np!=null?r._np.toLocaleString()+'원':'—'}</td>
+      <td class="mono">${r.pr!=null?r.pr.toLocaleString()+'원':'—'}</td>
+      <td class="disc">${r.dc!=null?r.dc+'%':'—'}</td>
+      <td class="dc">${dH(r.pd1,'원')}</td><td class="dc">${dH(r.pd3,'원')}</td>
+      <td class="mono">${r.lk!=null?r.lk.toLocaleString():'—'}</td>
+      <td class="dc">${dH(r.ld1)}</td><td class="dc">${dH(r.ld3)}</td><td class="dc">${dH(r.ld7)}</td>
+      <td class="rev">${r.rv!=null?r.rv:'—'}</td>
+      <td><span class="${sc}">${r.stk!=null?r.stk:'—'}</span></td>
+      <td><input type="date" class="di" value="${r._launch}" onchange="setLD('${r.cd}',this.value)"></td>
+      <td>${r._launch?daysEl(r._launch):''}</td>
+      <td><button class="ab" onclick="openChart('${r.cd}','${r.ml}','${esc(r.nm)}')">📈</button></td></tr>`;
+  }).join('');
+  document.getElementById('tCon').innerHTML=`<table><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table>`;
+  const tp=Math.ceil(total/PG);
+  const pg=document.getElementById('pager');pg.style.display=tp>1?'flex':'none';
+  if(tp>1)pg.innerHTML=`<button class="pb" onclick="goPage(${curPage-1})" ${curPage===1?'disabled':''}>←</button><span class="pi">${curPage}/${tp}</span><button class="pb" onclick="goPage(${curPage+1})" ${curPage===tp?'disabled':''}>→</button>`;
+}
+function goPage(p){curPage=p;render();}
+function setLD(code,val){if(!launchMap[code])launchMap[code]={d:null,p:null,m:''};launchMap[code].d=val;sv(LK,launchMap);render();renderLaunch();}
+
+// ── LAUNCH TABLE ──────────────────────────────────
+function addManual(){
+  const code=document.getElementById('mCode').value.trim();
+  if(!code){toast('코드 필요','err');return;}
+  if(launchMap[code]){toast('이미 존재 — 수정하려면 목록에서 직접 변경','err');return;}
+  const model=document.getElementById('mModel').value.trim();
+  const price=document.getElementById('mPrice').value.trim();
+  const date=document.getElementById('mDate').value;
+  launchMap[code]={d:date||null,p:parseInt(price)||null,m:model};
+  sv(LK,launchMap);renderLaunch();render();
+  ['mCode','mModel','mPrice','mDate'].forEach(id=>document.getElementById(id).value='');
+  toast(code+' 추가','ok');
+}
+function renderLaunch(){
+  const entries=Object.entries(launchMap).filter(([,v])=>v.d||v.p||v.m);
+  document.getElementById('lSum').textContent=entries.length+'개';
+  const con=document.getElementById('lTbl');
+  if(!entries.length){con.innerHTML='<div class="esm">데이터 없음</div>';return;}
+  entries.sort((a,b)=>(a[1].d||'9999')>(b[1].d||'9999')?1:-1);
+  const rows=entries.map(([code,info])=>{
+    const name=findName(code);
+    return`<tr><td class="cc">${code}</td><td class="cc">${info.m||'—'}</td>
+      <td style="font-size:11px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--sub2)">${name}</td>
+      <td style="font-family:var(--mono);font-size:11px">${info.p!=null?info.p.toLocaleString()+'원':'—'}</td>
+      <td><input type="date" value="${info.d||''}" onchange="launchMap['${code}'].d=this.value;sv(LK,launchMap);renderLaunch();render()"></td>
+      <td>${info.d?daysEl(info.d):'—'}</td>
+      <td><button class="rd" onclick="delLaunch('${code}')">✕</button></td></tr>`;
+  }).join('');
+  con.innerHTML=`<table class="st"><thead><tr><th>채널코드</th><th>품번</th><th>상품명</th><th>정상가</th><th>발매일</th><th>D+</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+function delLaunch(code){delete launchMap[code];sv(LK,launchMap);renderLaunch();render();toast(code+' 삭제');}
+function findName(code){for(const d of dates()){const r=(snapshots[d]||[]).find(r=>r.cd===code);if(r)return r.nm;}return'—';}
+function dlTpl(){
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet([['쇼핑몰상품코드','모델명','판매가','발매일'],['308537028','CTI2BL06',99900,'2026-03-01']]);
+  XLSX.utils.book_append_sheet(wb,ws,'발매일');XLSX.writeFile(wb,'발매일_템플릿.xlsx');toast('템플릿 다운로드');
+}
+function exportLaunch(){
+  const e=Object.entries(launchMap);if(!e.length){toast('데이터 없음','err');return;}
+  const wb=XLSX.utils.book_new();
+  const data=[['채널코드','품번','상품명','정상가','발매일','D+'],...e.map(([c,v])=>{
+    const n=findName(c),dy=v.d?Math.floor((new Date()-new Date(v.d))/86400000):null;
+    return[c,v.m||'',n,v.p||'',v.d||'',dy!=null&&dy>=0?`D+${dy}`:''];
+  })];
+  const ws=XLSX.utils.aoa_to_sheet(data);XLSX.utils.book_append_sheet(wb,ws,'발매일');
+  XLSX.writeFile(wb,`발매일_${new Date().toISOString().slice(0,10)}.xlsx`);toast('내보내기 완료');
+}
+
+// ── STOCK TABLE ───────────────────────────────────
+function renderStock(){
+  const entries=Object.entries(stockMap).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('stSum').textContent=entries.length+'개 품번';
+  const con=document.getElementById('stTbl');
+  if(!entries.length){con.innerHTML='<div class="esm">재고 파일 업로드 필요</div>';return;}
+  const rows=entries.map(([pbn,qty])=>{
+    const sc=qty>10?'sok':qty>0?'slow':'sno';
+    const codes=Object.entries(launchMap).filter(([,v])=>v.m===pbn).map(([c])=>c);
+    const name=codes.map(c=>findName(c)).find(n=>n!=='—')||'—';
+    return`<tr><td class="cc">${pbn}</td>
+      <td style="font-size:11px;color:var(--sub2);max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${name}</td>
+      <td><span class="${sc}" style="font-weight:700">${qty}</span></td>
+      <td style="font-size:10px;color:var(--muted)">${codes.join(', ')||'—'}</td></tr>`;
+  }).join('');
+  con.innerHTML=`<table class="st"><thead><tr><th>품번</th><th>상품명</th><th>가용재고</th><th>연결코드</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+function exportStock(){
+  const e=Object.entries(stockMap).sort((a,b)=>b[1]-a[1]);if(!e.length){toast('데이터 없음','err');return;}
+  const wb=XLSX.utils.book_new();
+  const data=[['품번','상품명','가용재고','연결코드'],...e.map(([p,q])=>{
+    const cs=Object.entries(launchMap).filter(([,v])=>v.m===p).map(([c])=>c);
+    const n=cs.map(c=>findName(c)).find(x=>x!=='—')||'—';
+    return[p,n,q,cs.join(', ')];
+  })];
+  const ws=XLSX.utils.aoa_to_sheet(data);XLSX.utils.book_append_sheet(wb,ws,'재고');
+  XLSX.writeFile(wb,`재고_${new Date().toISOString().slice(0,10)}.xlsx`);toast('내보내기 완료');
+}
+
+// ── CHART ─────────────────────────────────────────
+function openChart(cd,ml,nm){
+  cCode=cd;cMall=ml;
+  document.getElementById('mTit').textContent=nm;
+  document.getElementById('mSub').textContent=`${ml} · ${cd}`;
+  document.getElementById('mOver').classList.add('on');
+  drawChart();
+}
+function swC(m,btn){cMetric=m;document.querySelectorAll('.ct').forEach(b=>b.classList.remove('on'));btn.classList.add('on');drawChart();}
+function drawChart(){
+  const ds=dates(),cmap={lk:'#3a87cc',pr:'#7c5cbf',dc:'#c97a10',rv:'#1a9e5c'};
+  const vals=ds.map(d=>{const r=(snapshots[d]||[]).find(r=>r.cd===cCode&&r.ml===cMall);return r?r[cMetric]:null;});
+  if(myChart)myChart.destroy();
+  myChart=new Chart(document.getElementById('tChart').getContext('2d'),{
+    type:'line',
+    data:{labels:ds,datasets:[{data:vals,borderColor:cmap[cMetric],backgroundColor:cmap[cMetric]+'18',fill:true,tension:.35,pointRadius:5,pointBackgroundColor:cmap[cMetric],pointBorderColor:'#fff',pointBorderWidth:2}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#8a90a0',font:{size:10}},grid:{color:'#e2e4ea'}},y:{ticks:{color:'#8a90a0',font:{size:10}},grid:{color:'#e2e4ea'},beginAtZero:false}}}
+  });
+}
+
+// ── RENDER ────────────────────────────────────────
+function render(){
+  updBadge();
+  if(!dates().length){
+    document.getElementById('tCon').innerHTML='<div class="empty"><div class="ei">📊</div><h2>🔄 데이터 새로고침을 눌러주세요</h2><p>또는 직접 업로드 버튼으로 파일 추가</p></div>';
+    document.getElementById('pager').style.display='none';
+    document.getElementById('snpi').style.display='none';
+    return;
+  }
+  const date=selDate()||latest();
+  renderSummary(date);renderTable(date);
+  const si=document.getElementById('snpi');si.style.display='block';si.textContent='누적: '+dates().join(' · ');
+}
+
+let tt;
+function toast(msg,type=''){const t=document.getElementById('toast');t.textContent=msg;t.className='toast on '+type;clearTimeout(tt);tt=setTimeout(()=>t.className='toast',2800);}
+
+// ── INIT ──────────────────────────────────────────
+loadAll();
+updChPills();updDateSel();render();
+
+// GitHub Pages면 자동 동기화
+if(window.location.protocol!=='file:') syncData();
+</script>
+</body>
+</html>
