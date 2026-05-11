@@ -297,6 +297,17 @@ td{padding:7px 9px;white-space:nowrap;vertical-align:middle}
 <div class="toast" id="toast"></div>
 
 <script>
+// ── 페이지 전환 ──────────────────────────────────────
+function gPage(id, btn){
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('.tb').forEach(b => b.classList.remove('on'));
+  document.getElementById('page-' + id).classList.add('on');
+  btn.classList.add('on');
+  if(id === 'surge')  renderSurge();
+  if(id === 'launch') renderLaunch();
+  if(id === 'stock')  renderStock();
+}
+
 // ── STATE ──────────────────────────────────────────
 let snapshots={}, launchMap={}, stockMap={};
 let filters={brand:'all',channel:'all',sbrand:'all'};
