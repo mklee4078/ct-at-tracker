@@ -379,28 +379,29 @@ function gPage(id, el){
 }
 
 // ── STATE ──────────────────────────────────────────
-let snapshots={}, launchMap={}, stockMap={};
+let snapshots={}, launchMap={}, stockMap={}, launchDateMap={};
 let filters={brand:'all',channel:'all',sbrand:'all'};
 let sCol='lk', sDir='desc', curPage=1;
 const PG=50;
 let myChart=null, cCode=null, cMall=null, cMetric='lk';
-const SK='ctat_s2', LK='ctat_l2', STK='ctat_k2';
+const SK='ctat_s2', LK='ctat_l2', STK='ctat_k2', LDK='ctat_ld1';
 
 // ── 저장/로드 ──────────────────────────────────────
 function sv(key,data){try{localStorage.setItem(key,JSON.stringify(data));}catch(e){toast('저장 실패','err');}}
-function saveAll(){sv(SK,snapshots);sv(LK,launchMap);sv(STK,stockMap);}
+function saveAll(){sv(SK,snapshots);sv(LK,launchMap);sv(STK,stockMap);sv(LDK,launchDateMap);}
 function loadAll(){
   try{
-    const s=localStorage.getItem(SK),l=localStorage.getItem(LK),k=localStorage.getItem(STK);
+    const s=localStorage.getItem(SK),l=localStorage.getItem(LK),k=localStorage.getItem(STK),ld=localStorage.getItem(LDK);
     if(s)snapshots=JSON.parse(s);
     if(l)launchMap=JSON.parse(l);
     if(k)stockMap=JSON.parse(k);
+    if(ld)launchDateMap=JSON.parse(ld);
   }catch(e){}
 }
 function clearAll(){
   if(!confirm('모든 데이터 초기화?'))return;
   snapshots={};launchMap={};stockMap={};
-  [SK,LK,STK].forEach(k=>localStorage.removeItem(k));
+  [SK,LK,STK,LDK].forEach(k=>localStorage.removeItem(k));launchDateMap={};
   render();renderLaunch();renderStock();updBadge();
   toast('초기화 완료');
 }
@@ -460,6 +461,8 @@ function mergeData(d){
   // 재고: 항상 완전 교체 (최신 파일이 가장 정확)
   const sm=d.stockMap||d.k||{};
   if(Object.keys(sm).length>0) stockMap=sm;
+  const ldm=d.launchDateMap||d.ld||{};
+  Object.assign(launchDateMap,ldm);
   saveAll();updChPills();updDateSel();render();renderLaunch();renderStock();updBadge();
 }
 
@@ -509,17 +512,16 @@ function readLaunchDateFile(file){
       const raw=XLSX.utils.sheet_to_json(ws,{defval:null});
       let cnt=0;
       for(const r of raw){
-        const code=String(r['품번']||r['쇼핑몰상품코드']||r['상품코드']||'').trim();
+        const pbn=String(r['품번']||r['모델명']||'').trim();
         const dr=r['발매일']?String(r['발매일']).trim():null;
-        if(!code||!dr)continue;
+        if(!pbn||!dr)continue;
         let ld=null;
         if(/^\d{4}-\d{2}-\d{2}$/.test(dr))ld=dr;
         else if(/^\d{8}$/.test(dr))ld=`${dr.slice(0,4)}-${dr.slice(4,6)}-${dr.slice(6,8)}`;
         if(!ld)continue;
-        if(!launchMap[code])launchMap[code]={d:null,p:null,m:''};
-        launchMap[code].d=ld;cnt++;
+        launchDateMap[pbn]=ld;cnt++;
       }
-      sv(LK,launchMap);renderLaunchDate();render();
+      sv(LDK,launchDateMap);renderLaunchDate();render();
       toast(`발매일 ${cnt}개 등록 ✓`,'ok');
     }catch(e){toast('파싱 오류','err');console.error(e);}
   });
@@ -669,7 +671,14 @@ function dN(cd,ml,date,field,n){
   if(!pr||!cr)return null;
   const a=cr[field],b=pr[field];return(a!=null&&b!=null)?a-b:null;
 }
-function getInfo(cd){return launchMap[cd]||null;}
+function getInfo(cd){
+  const info=launchMap[cd]||null;
+  if(!info) return null;
+  // 발매일은 launchDateMap(품번 기준)에서 가져옴
+  const model=info.m||'';
+  const launchDate=model&&launchDateMap[model]?launchDateMap[model]:null;
+  return{...info, d:launchDate};
+}
 function getStock(cd){const i=getInfo(cd);if(!i||!i.m)return null;const q=stockMap[i.m];return q!=null?q:null;}
 
 // ── SURGE ─────────────────────────────────────────
@@ -817,55 +826,55 @@ function renderTable(date){
   if(tp>1)pg.innerHTML=`<button class="pb" onclick="goPage(${curPage-1})" ${curPage===1?'disabled':''}>←</button><span class="pi">${curPage}/${tp}</span><button class="pb" onclick="goPage(${curPage+1})" ${curPage===tp?'disabled':''}>→</button>`;
 }
 function goPage(p){curPage=p;render();}
-function setLD(code,val){if(!launchMap[code])launchMap[code]={d:null,p:null,m:''};launchMap[code].d=val;sv(LK,launchMap);render();renderLaunch();}
+function setLD(code,val){
+  // 품번 찾아서 launchDateMap에 저장
+  const info=launchMap[code];
+  const pbn=info&&info.m?info.m:code;
+  launchDateMap[pbn]=val;
+  sv(LDK,launchDateMap);render();renderLaunchDate();
+}
 
 // ── LAUNCH TABLE ──────────────────────────────────
 function addManual(){
-  const code=document.getElementById('mCode').value.trim();
+  const pbn=document.getElementById('mCode').value.trim();
   const date=document.getElementById('mDate').value;
-  if(!code){toast('쇼핑몰상품코드를 입력하세요','err');return;}
+  if(!pbn){toast('품번을 입력하세요','err');return;}
   if(!date){toast('발매일을 선택하세요','err');return;}
-  if(!launchMap[code]) launchMap[code]={d:null,p:null,m:''};
-  launchMap[code].d=date;
-  sv(LK,launchMap);renderLaunchDate();render();
+  launchDateMap[pbn]=date;
+  sv(LDK,launchDateMap);renderLaunchDate();render();
   document.getElementById('mCode').value='';
   document.getElementById('mDate').value='';
-  toast(code+' 발매일 등록 ✓','ok');
+  toast(pbn+' 발매일 등록 ✓','ok');
 }
 function renderLaunchDate(){
-  // 발매일 등록된 것만 표시
-  const entries=Object.entries(launchMap).filter(([,v])=>v.d);
+  const entries=Object.entries(launchDateMap).sort((a,b)=>a[1]>b[1]?-1:1);
   document.getElementById('ldSum').textContent=entries.length+'개';
   const con=document.getElementById('ldTbl');
   if(!con)return;
   if(!entries.length){con.innerHTML='<div class="esm">등록된 발매일이 없습니다</div>';return;}
-  entries.sort((a,b)=>a[1].d>b[1].d?-1:1); // 최신 발매일 위로
-  const rows=entries.map(([code,info])=>{
-    const name=findName(code);
+  const rows=entries.map(([pbn,date])=>{
     return`<tr>
-      <td class="cc">${code}</td>
-      <td style="font-size:11px;color:var(--sub2);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${name}</td>
-      <td><input type="date" value="${info.d||''}" onchange="launchMap['${code}'].d=this.value;sv(LK,launchMap);renderLaunchDate();render()"></td>
-      <td>${info.d?daysEl(info.d):'—'}</td>
-      <td><button class="rd" onclick="delLaunchDate('${code}')">✕</button></td>
+      <td class="cc" style="font-weight:600">${pbn}</td>
+      <td><input type="date" value="${date}" onchange="launchDateMap['${pbn}']=this.value;sv(LDK,launchDateMap);renderLaunchDate();render()"></td>
+      <td>${daysEl(date)}</td>
+      <td><button class="rd" onclick="delLaunchDate('${pbn}')">✕</button></td>
     </tr>`;
   }).join('');
-  con.innerHTML=`<table class="st"><thead><tr><th>품번</th><th>상품명</th><th>발매일</th><th>D+</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  con.innerHTML=`<table class="st"><thead><tr><th>품번</th><th>발매일</th><th>D+</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
 }
-function delLaunchDate(code){
-  if(launchMap[code])launchMap[code].d=null;
-  sv(LK,launchMap);renderLaunchDate();render();
-  toast(code+' 발매일 삭제');
+function delLaunchDate(pbn){
+  delete launchDateMap[pbn];
+  sv(LDK,launchDateMap);renderLaunchDate();render();
+  toast(pbn+' 발매일 삭제');
 }
 function exportLaunchDate(){
-  const entries=Object.entries(launchMap).filter(([,v])=>v.d);
+  const entries=Object.entries(launchDateMap).sort((a,b)=>a[1]>b[1]?-1:1);
   if(!entries.length){toast('데이터 없음','err');return;}
   const wb=XLSX.utils.book_new();
-  const data=[['쇼핑몰상품코드','상품명','발매일','D+'],
-    ...entries.map(([c,v])=>{
-      const n=findName(c);
-      const dy=Math.floor((new Date()-new Date(v.d))/86400000);
-      return[c,n,v.d,dy>=0?'D+'+dy:'예정'];
+  const data=[['품번','발매일','D+'],
+    ...entries.map(([pbn,date])=>{
+      const dy=Math.floor((new Date()-new Date(date))/86400000);
+      return[pbn,date,dy>=0?'D+'+dy:'예정'];
     })];
   const ws=XLSX.utils.aoa_to_sheet(data);
   XLSX.utils.book_append_sheet(wb,ws,'발매일');
