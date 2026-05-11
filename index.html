@@ -161,6 +161,15 @@ td{padding:7px 9px;white-space:nowrap;vertical-align:middle}
     <div class="fg"><span class="fl">날짜</span>
       <select id="dateSel" onchange="render()"><option value="latest">최근</option></select>
     </div>
+    <div class="fg"><span class="fl">기간</span>
+      <select id="periodSel" onchange="render()">
+        <option value="all">전체</option>
+        <option value="7">최근 7일</option>
+        <option value="14">최근 14일</option>
+        <option value="30">최근 30일</option>
+        <option value="60">최근 60일</option>
+      </select>
+    </div>
     <input class="si" id="searchQ" placeholder="상품명 / 코드 / 품번" oninput="render()">
     <div class="fg" style="margin-left:auto"><span class="fl">정렬</span>
       <select id="sortCol" onchange="onSort()">
@@ -555,7 +564,12 @@ function setF(key,val,btn){
 function setChAll(btn){filters.channel='all';document.querySelectorAll('#chPills .pill').forEach(p=>p.className='pill');btn.className='pill a';curPage=1;render();}
 function setChF(val,btn){filters.channel=val;document.getElementById('chAll').className='pill';document.querySelectorAll('#chPills .pill').forEach(p=>p.className='pill');btn.className='pill a';curPage=1;render();}
 function updChPills(){const chs=[...new Set(Object.values(snapshots).flat().map(r=>r.ml))].sort();document.getElementById('chPills').innerHTML=chs.map(c=>`<button class="pill" onclick="setChF('${c}',this)">${c}</button>`).join('');}
-function updDateSel(){const sel=document.getElementById('dateSel');sel.innerHTML='<option value="latest">최근</option>'+dates().map(d=>`<option value="${d}">${d}</option>`).join('');}
+function updDateSel(){
+  const sel=document.getElementById('dateSel');
+  // 최신날짜가 위로 (내림차순)
+  const sorted=[...dates()].reverse();
+  sel.innerHTML='<option value="latest">최근</option>'+sorted.map(d=>`<option value="${d}">${d}</option>`).join('');
+}
 function selDate(){const v=document.getElementById('dateSel').value;return v==='latest'?latest():v;}
 function onSort(){sCol=document.getElementById('sortCol').value;sDir=document.getElementById('sortDir').value;curPage=1;render();}
 function setSort(col){if(sCol===col)sDir=sDir==='asc'?'desc':'asc';else{sCol=col;sDir='desc';}document.getElementById('sortCol').value=sCol;document.getElementById('sortDir').value=sDir;curPage=1;render();}
@@ -834,6 +848,20 @@ function render(){
     return;
   }
   const date=selDate()||latest();
+  // 기간 필터 적용
+  const period=document.getElementById('periodSel')?document.getElementById('periodSel').value:'all';
+  if(period!=='all'){
+    const cutoff=new Date();cutoff.setDate(cutoff.getDate()-parseInt(period));
+    const cutStr=cutoff.toISOString().slice(0,10);
+    // 기간 밖 날짜는 dateSelect에서 비활성화
+    const sel=document.getElementById('dateSel');
+    if(sel){[...sel.options].forEach(o=>{
+      if(o.value!=='latest') o.disabled=(o.value<cutStr);
+    });}
+  } else {
+    const sel=document.getElementById('dateSel');
+    if(sel)[...sel.options].forEach(o=>o.disabled=false);
+  }
   renderSummary(date);renderTable(date);
   const si=document.getElementById('snpi');si.style.display='block';si.textContent='누적: '+dates().join(' · ');
 }
