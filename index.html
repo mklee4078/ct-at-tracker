@@ -130,11 +130,11 @@ td{padding:7px 9px;white-space:nowrap;vertical-align:middle}
 <body>
 <div class="nav">
   <div class="nav-logo">CT &amp; AT 트래커</div>
-  <div class="nav-tabs">
-    <button class="tb on" onclick="gPage('tracker',this)">📊 트래커</button>
-    <button class="tb" onclick="gPage('surge',this)">🔥 급상승</button>
-    <button class="tb" onclick="gPage('launch',this)">📅 발매일/정상가</button>
-    <button class="tb" onclick="gPage('stock',this)">📦 재고</button>
+  <div class="nav-tabs" id="navTabs">
+    <div class="tb on" id="tab-tracker" onclick="gPage('tracker',this)">📊 트래커</div>
+    <div class="tb" id="tab-surge" onclick="gPage('surge',this)">🔥 급상승</div>
+    <div class="tb" id="tab-launch" onclick="gPage('launch',this)">📅 발매일</div>
+    <div class="tb" id="tab-stock" onclick="gPage('stock',this)">📦 재고</div>
   </div>
   <div class="nav-r">
     <span class="nb" id="snapBadge">스냅샷 0개</span>
@@ -298,14 +298,22 @@ td{padding:7px 9px;white-space:nowrap;vertical-align:middle}
 
 <script>
 // ── 페이지 전환 ──────────────────────────────────────
-function gPage(id, btn){
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('on'));
-  document.querySelectorAll('.tb').forEach(b => b.classList.remove('on'));
-  document.getElementById('page-' + id).classList.add('on');
-  btn.classList.add('on');
-  if(id === 'surge')  renderSurge();
-  if(id === 'launch') renderLaunch();
-  if(id === 'stock')  renderStock();
+function gPage(id, el){
+  // 모든 페이지 숨기기
+  ['tracker','surge','launch','stock'].forEach(function(p){
+    var pg = document.getElementById('page-'+p);
+    if(pg) pg.classList.remove('on');
+    var tb = document.getElementById('tab-'+p);
+    if(tb) tb.classList.remove('on');
+  });
+  // 선택된 페이지 보이기
+  var pg = document.getElementById('page-'+id);
+  if(pg) pg.classList.add('on');
+  var tb = document.getElementById('tab-'+id);
+  if(tb) tb.classList.add('on');
+  if(id==='surge')  renderSurge();
+  if(id==='launch') renderLaunch();
+  if(id==='stock')  renderStock();
 }
 
 // ── STATE ──────────────────────────────────────────
