@@ -3,9 +3,15 @@
 """
 tracker_watcher_once.py
 스케줄러/bat에서 호출 — 1회 실행 후 종료
-(상시 감시가 아닌 스케줄러 트리거 방식)
+
+구조:
+  tracker_data.json       ← launchMap + stockMap + 날짜목록 (가벼움)
+  snapshots/YYYY-MM-DD.json ← 날짜별 스냅샷 (날짜당 1파일)
+
+장점: 새로고침시 오늘 파일만 로드 → 날짜 쌓여도 빠름
 """
-import hashlib, json, logging, re, sys
+import json, logging, re, sys
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
@@ -14,9 +20,9 @@ try:
 except ImportError:
     print('[오류] pip install pandas openpyxl'); sys.exit(1)
 
-SCRIPT_DIR  = Path(__file__).resolve().parent
-JSON_PATH   = SCRIPT_DIR / 'tracker_data.json'
-STATE_PATH  = SCRIPT_DIR / '.watcher_state.json'  # 처리된 파일 해시 기록
+SCRIPT_DIR = Path(__file__).resolve().parent
+JSON_PATH  = SCRIPT_DIR / 'tracker_data.json'
+SNAP_DIR   = SCRIPT_DIR / 'snapshots'
 
 PAT_LIKES   = re.compile(r'좋아요_리뷰수_\d{8}', re.I)
 PAT_LINKAGE = re.compile(r'linkage_modify', re.I)
@@ -25,15 +31,10 @@ PAT_STOCK   = re.compile(r'창고별_가용재고', re.I)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s  %(message)s', datefmt='%H:%M:%S')
 log = logging.getLogger(__name__)
 
-def fhash(p):
-    h = hashlib.md5()
-    with open(p,'rb') as f:
-        for c in iter(lambda: f.read(65536), b''): h.update(c)
-    return h.hexdigest()
-
+# ── 유틸 ──────────────────────────────────────────
 def parse_int(v):
     if v is None: return None
-    s = re.sub(r'[^\d]','',str(v))
+    s = re.sub(r'[^\d]', '', str(v))
     return int(s) if s else None
 
 def extract_date(fn, ct=None):
@@ -44,124 +45,151 @@ def extract_date(fn, ct=None):
         if m2: return f'{m2.group(1)}-{m2.group(2)}-{m2.group(3)}'
     return datetime.now().strftime('%Y-%m-%d')
 
-def load_json():
+# ── JSON (메타데이터만) ───────────────────────────
+def load_meta():
+    base = {'launchMap': {}, 'stockMap': {}, 'snapshotDates': [], 'meta': {}}
     if JSON_PATH.exists():
         try:
-            with open(JSON_PATH,'r',encoding='utf-8') as f: return json.load(f)
-        except: pass
-    return {'snapshots':{},'launchMap':{},'stockMap':{},'meta':{}}
+            with open(JSON_PATH, 'r', encoding='utf-8') as f:
+                d = json.load(f)
+            # 구버전 호환 (snapshots 키 있으면 무시)
+            for k in base:
+                if k not in d:
+                    d[k] = base[k]
+            return d
+        except Exception as e:
+            log.warning(f'메타 로드 실패: {e}')
+    return base
 
-def save_json(data):
-    data['meta']['lastUpdated'] = datetime.now().isoformat()
-    with open(JSON_PATH,'w',encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, separators=(',',':'))
+def save_meta(data):
+    # snapshots 폴더 기준으로 날짜목록 자동 갱신
+    SNAP_DIR.mkdir(exist_ok=True)
+    data['snapshotDates'] = sorted(f.stem for f in SNAP_DIR.glob('*.json'))
+    data.setdefault('meta', {})['lastUpdated'] = datetime.now().isoformat()
+    # snapshots 키는 저장 안 함
+    save_data = {k: v for k, v in data.items() if k != 'snapshots'}
+    with open(JSON_PATH, 'w', encoding='utf-8') as f:
+        json.dump(save_data, f, ensure_ascii=False, separators=(',', ':'))
 
-def load_state():
-    if STATE_PATH.exists():
-        try:
-            with open(STATE_PATH,'r') as f: return json.load(f)
-        except: pass
-    return {}
+# ── 스냅샷 (날짜별 파일) ─────────────────────────
+def snap_exists(date_key):
+    return (SNAP_DIR / f'{date_key}.json').exists()
 
-def save_state(state):
-    with open(STATE_PATH,'w') as f: json.dump(state, f)
+def save_snap(date_key, rows):
+    SNAP_DIR.mkdir(exist_ok=True)
+    with open(SNAP_DIR / f'{date_key}.json', 'w', encoding='utf-8') as f:
+        json.dump(rows, f, ensure_ascii=False, separators=(',', ':'))
 
+# ── 파서 ─────────────────────────────────────────
 def parse_likes(path):
     df = pd.read_excel(path, dtype=str).fillna('')
-    dk = extract_date(path.name, df['수집일시'].iloc[0] if '수집일시' in df.columns and len(df) else None)
+    ct = df['수집일시'].iloc[0] if '수집일시' in df.columns and len(df) else None
+    dk = extract_date(path.name, ct)
     seen = set(); rows = []
     for _, r in df.iterrows():
-        cd = str(r.get('상품코드','')).strip()
-        ml = str(r.get('쇼핑몰','')).strip()
+        cd = str(r.get('상품코드', '')).strip()
+        ml = str(r.get('쇼핑몰', '')).strip()
         if not cd: continue
         k = f'{cd}|{ml}'
         if k in seen: continue
         seen.add(k)
-        rows.append({'ml':ml,'br':str(r.get('브랜드','')).strip(),'cd':cd,
-            'nm':str(r.get('상품명','')).strip(),'pr':parse_int(r.get('가격','')),
-            'dc':parse_int(r.get('할인율','')),'lk':parse_int(r.get('좋아요수','')),
-            'rv':parse_int(r.get('리뷰수','')),'ur':str(r.get('URL','')).strip()})
+        rows.append({
+            'ml': ml, 'br': str(r.get('브랜드', '')).strip(),
+            'cd': cd, 'nm': str(r.get('상품명', '')).strip(),
+            'pr': parse_int(r.get('가격', '')),
+            'dc': parse_int(r.get('할인율', '')),
+            'lk': parse_int(r.get('좋아요수', '')),
+            'rv': parse_int(r.get('리뷰수', '')),
+            'ur': str(r.get('URL', '')).strip()
+        })
     return dk, rows
 
-def parse_linkage(path, existing):
+def parse_linkage(path):
     df = pd.read_excel(path)
-    result = dict(existing); added = 0
+    result = {}
     for _, r in df.iterrows():
-        code = str(r.get('쇼핑몰상품코드','') or '').strip()
+        code = str(r.get('쇼핑몰상품코드', '') or '').strip()
         if not code or code in result: continue
-        model = str(r.get('모델명','') or '').strip()
+        model = str(r.get('모델명', '') or '').strip()
         price = parse_int(r.get('판매가'))
-        dr = str(r.get('발매일','') or '').strip(); ld = None
+        dr = str(r.get('발매일', '') or '').strip()
+        ld = None
         if dr:
             if re.match(r'^\d{4}-\d{2}-\d{2}$', dr): ld = dr
             elif re.match(r'^\d{8}$', dr): ld = f'{dr[:4]}-{dr[4:6]}-{dr[6:8]}'
-        result[code] = {'d':ld,'p':price,'m':model}; added += 1
-    return result, added
+        result[code] = {'d': ld, 'p': price, 'm': model}
+    return result
 
 def parse_stock(path):
     all_r = pd.read_excel(path, header=None).values.tolist()
-    hdr = next((i for i,row in enumerate(all_r[:5]) if '품번' in [str(x) for x in row]), None)
-    if hdr is None: raise ValueError('"품번" 없음')
+    hdr = next((i for i, row in enumerate(all_r[:5]) if '품번' in [str(x) for x in row]), None)
+    if hdr is None: raise ValueError('"품번" 컬럼 없음')
     headers = [str(x) for x in all_r[hdr]]
     pi, qi = headers.index('품번'), headers.index('가용재고')
     acc = {}
     for row in all_r[hdr+1:]:
         pbn = str(row[pi] if pi < len(row) else '').strip()
         qty = row[qi] if qi < len(row) else 0
-        if not pbn or pbn in ('None','nan'): continue
-        try: acc[pbn] = acc.get(pbn,0) + float(qty or 0)
+        if not pbn or pbn in ('None', 'nan'): continue
+        try: acc[pbn] = acc.get(pbn, 0) + float(qty or 0)
         except: pass
-    return {k: int(v) for k,v in acc.items()}
+    return {k: int(v) for k, v in acc.items()}
 
+# ── 메인 ─────────────────────────────────────────
 def main():
     log.info('1회 실행 시작')
-    data = load_json()
-    state = load_state()
+    data = load_meta()
     changed = False
+    today_str = datetime.now().strftime('%Y%m%d')
 
-    files = (list(SCRIPT_DIR.glob('*.xlsx')) + list(SCRIPT_DIR.glob('*.xls')))
-    # 재고 파일은 최신 1개만 처리 (파일명 날짜 기준)
-    stock_files = sorted([f for f in files if PAT_STOCK.search(f.name)], reverse=True)
+    all_files = sorted(list(SCRIPT_DIR.glob('*.xlsx')) + list(SCRIPT_DIR.glob('*.xls')))
 
-    for fp in files:
-        try: h = fhash(fp)
-        except: continue
-        if state.get(str(fp)) == h: continue  # 이미 처리한 파일 스킵
+    # ① 좋아요: 날짜별 그룹핑 → 없는 날짜 + 오늘만 처리
+    date_files = defaultdict(list)
+    for f in all_files:
+        if PAT_LIKES.search(f.name):
+            m = re.search(r'(\d{8})', f.name)
+            if m: date_files[m.group(1)].append(f)
 
-        fn = fp.name
+    for ds, files in sorted(date_files.items()):
+        dk = f'{ds[:4]}-{ds[4:6]}-{ds[6:8]}'
+        is_today = (ds == today_str)
+        # 이미 있고 오늘 아니면 스킵
+        if snap_exists(dk) and not is_today:
+            continue
+        fp = sorted(files, reverse=True)[0]  # 같은 날짜 중 최신 파일
         try:
-            if PAT_LIKES.search(fn):
-                dk, rows = parse_likes(fp)
-                if dk in data['snapshots']:
-                    log.info(f'좋아요 {dk} 이미 존재 — 스킵')
-                else:
-                    data['snapshots'][dk] = rows
-                    log.info(f'좋아요 {dk}: {len(rows)}개 추가')
-                    changed = True
-                state[str(fp)] = h
-
-            elif PAT_LINKAGE.search(fn):
-                result, added = parse_linkage(fp, data['launchMap'])
-                data['launchMap'] = result
-                log.info(f'linkage {fn}: {added}개 추가')
-                changed = True
-                state[str(fp)] = h
-
-            elif PAT_STOCK.search(fn) and fp == stock_files[0]:
-                # 재고는 가장 최신 파일만
-                sm = parse_stock(fp)
-                data['stockMap'] = sm
-                log.info(f'재고 {fn}: {len(sm)}개 품번 완전 교체')
-                changed = True
-                state[str(fp)] = h
-
+            dk2, rows = parse_likes(fp)
+            save_snap(dk2, rows)
+            log.info(f'좋아요 {dk2}: {len(rows)}개 저장 ({fp.name})')
+            changed = True
         except Exception as e:
-            log.error(f'{fn}: {e}')
+            log.error(f'{fp.name}: {e}')
+
+    # ② linkage: 최신 파일 1개
+    lfiles = sorted([f for f in all_files if PAT_LINKAGE.search(f.name)], reverse=True)
+    if lfiles:
+        try:
+            data['launchMap'] = parse_linkage(lfiles[0])
+            log.info(f'linkage {lfiles[0].name}: {len(data["launchMap"])}개')
+            changed = True
+        except Exception as e:
+            log.error(f'{lfiles[0].name}: {e}')
+
+    # ③ 재고: 최신 파일 1개
+    sfiles = sorted([f for f in all_files if PAT_STOCK.search(f.name)], reverse=True)
+    if sfiles:
+        try:
+            data['stockMap'] = parse_stock(sfiles[0])
+            log.info(f'재고 {sfiles[0].name}: {len(data["stockMap"])}개 품번')
+            changed = True
+        except Exception as e:
+            log.error(f'{sfiles[0].name}: {e}')
 
     if changed:
-        save_json(data)
-        save_state(state)
-        log.info('✓ tracker_data.json 업데이트 완료')
+        save_meta(data)
+        snap_count = len(list(SNAP_DIR.glob('*.json'))) if SNAP_DIR.exists() else 0
+        log.info(f'✓ 업데이트 완료 (스냅샷 {snap_count}일치)')
     else:
         log.info('변경 없음')
 

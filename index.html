@@ -412,15 +412,34 @@ async function syncData(){
   const si=document.getElementById('syncInfo');
   si.innerHTML='<span class="spin"></span>동기화 중...';
   try{
-    // 현재 페이지 기준 경로
-    const base=window.location.href.replace(/\/[^/]*$/, '/');
-    const url=base+'tracker_data.json?t='+Date.now();
-    const res=await fetch(url);
+    const base=window.location.href.replace(/\/[^/]*$/,'/');
+    const t=Date.now();
+
+    // 1) tracker_data.json (launchMap + stockMap + 날짜목록만, 가벼움)
+    const res=await fetch(base+'tracker_data.json?t='+t);
     if(!res.ok)throw new Error('파일 없음 ('+res.status+')');
     const d=await res.json();
-    mergeData(d);
+
+    // launchMap, stockMap 갱신
+    const lm=d.launchMap||d.l||{};
+    const sm=d.stockMap||d.k||{};
+    if(Object.keys(lm).length>0) launchMap=lm;
+    if(Object.keys(sm).length>0) stockMap=sm;
+
+    // 2) 없는 날짜의 스냅샷 파일만 추가 로드 (있는 날짜는 스킵)
+    const allDates=d.snapshotDates||Object.keys(d.snapshots||d.s||{});
+    const missing=allDates.filter(dt=>!snapshots[dt]);
+    for(const dt of missing){
+      try{
+        const r2=await fetch(base+'snapshots/'+dt+'.json?t='+t);
+        if(r2.ok) snapshots[dt]=await r2.json();
+      }catch(e2){console.warn('스냅샷 로드 실패:',dt,e2);}
+    }
+
+    saveAll();updChPills();updDateSel();render();renderLaunch();renderStock();updBadge();
     const ts=new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
-    si.textContent='✓ '+ts+' 동기화됨';
+    const addedMsg=missing.length>0?` (+${missing.length}일치)`:'';
+    si.textContent='✓ '+ts+' 동기화됨'+addedMsg;
     toast('데이터 업데이트 완료','ok');
   }catch(e){
     si.textContent='⚠ 동기화 실패';
