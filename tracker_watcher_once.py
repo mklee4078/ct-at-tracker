@@ -166,12 +166,25 @@ def main():
         except Exception as e:
             log.error(f'{fp.name}: {e}')
 
-    # ② linkage: 최신 파일 1개
+    # ② linkage: 최신 파일 1개 (좋아요 상품코드와 매칭되는 것만)
     lfiles = sorted([f for f in all_files if PAT_LINKAGE.search(f.name)], reverse=True)
     if lfiles:
         try:
-            data['launchMap'] = parse_linkage(lfiles[0])
-            log.info(f'linkage {lfiles[0].name}: {len(data["launchMap"])}개')
+            full_map = parse_linkage(lfiles[0])
+            # snapshots 폴더의 모든 상품코드 수집
+            all_codes = set()
+            if SNAP_DIR.exists():
+                for snap_f in SNAP_DIR.glob('*.json'):
+                    try:
+                        rows = json.loads(snap_f.read_text(encoding='utf-8'))
+                        all_codes.update(r.get('cd','') for r in rows)
+                    except: pass
+            # 매칭되는 코드만 필터링
+            if all_codes:
+                data['launchMap'] = {k:v for k,v in full_map.items() if k in all_codes}
+            else:
+                data['launchMap'] = full_map
+            log.info(f'linkage {lfiles[0].name}: {len(full_map)}개 중 {len(data["launchMap"])}개 매칭')
             changed = True
         except Exception as e:
             log.error(f'{lfiles[0].name}: {e}')
