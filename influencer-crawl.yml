@@ -1,0 +1,33 @@
+name: Influencer Daily Crawl
+
+on:
+  schedule:
+    # 매일 한국시간 오전 9시 (UTC 0시) 실행
+    - cron: '0 0 * * *'
+  workflow_dispatch:   # 수동 실행 버튼도 함께 활성화 (테스트용)
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install gspread google-api-python-client google-auth instaloader
+
+      - name: Run crawler
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+        run: |
+          python crawl_influencer.py
