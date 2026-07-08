@@ -159,17 +159,13 @@ td{padding:7px 9px;white-space:nowrap;vertical-align:middle}
       <button class="pill a" id="chAll" onclick="setChAll(this)">전체</button>
       <span id="chPills"></span>
     </div>
-    <div class="fg"><span class="fl">날짜</span>
-      <select id="dateSel" onchange="render()"><option value="latest">최근</option></select>
-    </div>
     <div class="fg"><span class="fl">기간</span>
-      <select id="periodSel" onchange="render()">
-        <option value="all">전체</option>
-        <option value="7">최근 7일</option>
-        <option value="14">최근 14일</option>
-        <option value="30">최근 30일</option>
-        <option value="60">최근 60일</option>
-      </select>
+      <input type="date" class="si" id="fromDate" style="width:132px" onchange="onRange()">
+      <span style="color:var(--muted);font-size:12px">~</span>
+      <input type="date" class="si" id="toDate" style="width:132px" onchange="onRange()">
+      <button class="pill" onclick="setRange(7)">7일</button>
+      <button class="pill" onclick="setRange(30)">30일</button>
+      <button class="pill a" id="rgAll" onclick="setRange('all')">전체</button>
     </div>
     <input class="si" id="searchQ" placeholder="상품명 / 코드 / 품번" oninput="render()">
     <div class="fg" style="margin-left:auto"><span class="fl">정렬</span>
@@ -177,7 +173,8 @@ td{padding:7px 9px;white-space:nowrap;vertical-align:middle}
         <option value="lk">좋아요수</option><option value="pr">판매가</option>
         <option value="dc">할인율</option><option value="rv">리뷰수</option>
         <option value="ld1">♥ 1일</option><option value="ld3">♥ 3일</option>
-        <option value="ld7">♥ 7일</option><option value="pd1">가격 1일</option>
+        <option value="ld7">♥ 7일</option><option value="ldR">♥ 기간</option>
+        <option value="pd1">가격 1일</option>
         <option value="pd3">가격 3일</option><option value="stk">재고</option>
       </select>
       <select id="sortDir" onchange="onSort()">
@@ -289,7 +286,7 @@ td{padding:7px 9px;white-space:nowrap;vertical-align:middle}
             <div style="font-size:28px;margin-bottom:8px">📅</div>
             <h3>발매일 파일 업로드</h3>
             <p>
-              필요 컬럼: <code>품번</code> · <code>발매일</code><br>
+              필요 컬럼: <code>품번</code> · <code>출시일</code> (또는 발매일)<br>
               날짜 형식: <code>YYYY-MM-DD</code> 또는 <code>YYYYMMDD</code><br>
               드래그앤드롭 또는 클릭해서 선택
             </p>
@@ -434,6 +431,10 @@ async function syncData(){
     if(Object.keys(lm).length>0) launchMap=lm;
     if(Object.keys(sm).length>0) stockMap=sm;
 
+    // 발매일: 서버(tracker_data.json)를 우선, 로컬 입력분은 보존
+    const ldm=d.launchDateMap||d.ld||{};
+    if(Object.keys(ldm).length>0) launchDateMap=Object.assign({},launchDateMap,ldm);
+
     // 2) 없는 날짜의 스냅샷 파일만 추가 로드 (있는 날짜는 스킵)
     const allDates=d.snapshotDates||Object.keys(d.snapshots||d.s||{});
     const missing=allDates.filter(dt=>!snapshots[dt]);
@@ -540,13 +541,20 @@ function readLaunchDateFile(file){
       // header:1 로 배열 형태로 읽어서 날짜 직접 처리
       const allRows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
       if(!allRows.length){toast('파일이 비어있음','err');return;}
-      // 헤더 행 찾기 (품번 컬럼)
-      const hdr=allRows[0].map(v=>v==null?'':String(v));
+      // 헤더 행 찾기 (품번 컬럼이 있는 행)
+      let hdrRowIdx=0;
+      let hdr=[];
+      for(let i=0;i<Math.min(5,allRows.length);i++){
+        const row=allRows[i].map(v=>v==null?'':String(v));
+        if(row.includes('품번')){hdrRowIdx=i;hdr=row;break;}
+      }
+      if(!hdr.length){toast('"품번" 컬럼을 찾을 수 없음','err');return;}
       const pbnIdx=hdr.indexOf('품번');
-      const dateIdx=hdr.indexOf('발매일');
-      if(pbnIdx<0||dateIdx<0){toast('"품번" 또는 "발매일" 컬럼 없음','err');console.log('헤더:',hdr);return;}
+      // 출시일 또는 발매일 컬럼
+      const dateIdx=hdr.indexOf('출시일')>=0?hdr.indexOf('출시일'):hdr.indexOf('발매일');
+      if(pbnIdx<0||dateIdx<0){toast('"품번" 또는 "출시일/발매일" 컬럼 없음','err');console.log('헤더:',hdr);return;}
       let cnt=0;
-      for(let i=1;i<allRows.length;i++){
+      for(let i=hdrRowIdx+1;i<allRows.length;i++){
         const row=allRows[i];
         const pbn=String(row[pbnIdx]||'').trim();
         const dateVal=row[dateIdx];
@@ -698,12 +706,40 @@ function setChAll(btn){filters.channel='all';document.querySelectorAll('#chPills
 function setChF(val,btn){filters.channel=val;document.getElementById('chAll').className='pill';document.querySelectorAll('#chPills .pill').forEach(p=>p.className='pill');btn.className='pill a';curPage=1;render();}
 function updChPills(){const chs=[...new Set(Object.values(snapshots).flat().map(r=>r.ml))].sort();document.getElementById('chPills').innerHTML=chs.map(c=>`<button class="pill" onclick="setChF('${c}',this)">${c}</button>`).join('');}
 function updDateSel(){
-  const sel=document.getElementById('dateSel');
-  // 최신날짜가 위로 (내림차순)
-  const sorted=[...dates()].reverse();
-  sel.innerHTML='<option value="latest">최근</option>'+sorted.map(d=>`<option value="${d}">${d}</option>`).join('');
+  // 스냅샷 날짜 범위에 맞춰 날짜 입력 min/max·기본값 설정
+  const ds=dates();if(!ds.length)return;
+  const lo=ds[0],hi=ds[ds.length-1];
+  const f=document.getElementById('fromDate'),t=document.getElementById('toDate');
+  if(!f||!t)return;
+  f.min=lo;f.max=hi;t.min=lo;t.max=hi;
+  if(!f.value||f.value<lo||f.value>hi)f.value=lo;
+  if(!t.value||t.value>hi||t.value<lo)t.value=hi;
 }
-function selDate(){const v=document.getElementById('dateSel').value;return v==='latest'?latest():v;}
+function rangeFrom(){const f=document.getElementById('fromDate');const v=f&&f.value?f.value:'';const ds=dates();return v||ds[0]||null;}
+function rangeTo(){const t=document.getElementById('toDate');const v=t&&t.value?t.value:'';const ds=dates();return v||ds[ds.length-1]||null;}
+// 표시 기준일 = 종료일 이하 가장 가까운 스냅샷
+function selDate(){const ds=dates();const to=rangeTo();let r=null;for(const d of ds)if(d<=to)r=d;return r||latest();}
+// 기간 시작 기준일 = 시작일 이상 가장 가까운 스냅샷
+function startDate(){const ds=dates();const fr=rangeFrom();for(const d of ds)if(d>=fr)return d;return ds[0]||null;}
+function onRange(){curPage=1;render();}
+function setRange(n){
+  const ds=dates();if(!ds.length)return;
+  const hi=ds[ds.length-1];
+  document.getElementById('toDate').value=hi;
+  if(n==='all'){document.getElementById('fromDate').value=ds[0];}
+  else{const c=new Date(hi);c.setDate(c.getDate()-n);const cs=c.toISOString().slice(0,10);document.getElementById('fromDate').value=ds.find(d=>d>=cs)||ds[0];}
+  document.querySelectorAll('#page-tracker .fg .pill').forEach(p=>{if(p.textContent==='7일'||p.textContent==='30일'||p.textContent==='전체')p.className='pill';});
+  const bid=n==='all'?'rgAll':null;if(bid)document.getElementById(bid).className='pill a';
+  curPage=1;render();
+}
+// 기간(시작→종료) 증감
+function dRange(cd,ml,field){
+  const s=startDate(),e=selDate();if(!s||!e||s===e)return null;
+  const sr=(snapshots[s]||[]).find(r=>r.cd===cd&&r.ml===ml);
+  const er=(snapshots[e]||[]).find(r=>r.cd===cd&&r.ml===ml);
+  if(!sr||!er)return null;
+  const a=er[field],b=sr[field];return(a!=null&&b!=null)?a-b:null;
+}
 function onSort(){sCol=document.getElementById('sortCol').value;sDir=document.getElementById('sortDir').value;curPage=1;render();}
 function setSort(col){if(sCol===col)sDir=sDir==='asc'?'desc':'asc';else{sCol=col;sDir='desc';}document.getElementById('sortCol').value=sCol;document.getElementById('sortDir').value=sDir;curPage=1;render();}
 function filtered(date){
@@ -804,8 +840,8 @@ function renderSummary(date){
   document.getElementById('sc-lk').textContent=al!=null?al.toLocaleString():'—';
   const dr=rows.filter(r=>r.dc!=null),ad=dr.length?Math.round(dr.reduce((a,r)=>a+r.dc,0)/dr.length):null;
   document.getElementById('sc-dc').textContent=ad!=null?ad+'%':'—';
-  const prev=prevN(date,1);
-  if(prev){
+  const prev=startDate();
+  if(prev&&prev!==date){
     const pr2=filtered(prev);
     if(al!=null){const pl=pr2.filter(r=>r.lk!=null);const pa=pl.length?Math.round(pl.reduce((a,r)=>a+r.lk,0)/pl.length):null;if(pa!=null)document.getElementById('sd-lk').innerHTML=dH(al-pa);}
     if(ad!=null){const pd=pr2.filter(r=>r.dc!=null);const pa=pd.length?Math.round(pd.reduce((a,r)=>a+r.dc,0)/pd.length):null;if(pa!=null)document.getElementById('sd-dc').innerHTML=dH(ad-pa,'%');}
@@ -823,7 +859,7 @@ const COLS=[
   {k:'dc',l:'할인율',w:'60px'},
   {k:'pd1',l:'가격↕1일',w:'76px'},{k:'pd3',l:'가격↕3일',w:'76px'},
   {k:'lk',l:'좋아요',w:'68px'},
-  {k:'ld1',l:'♥1일',w:'58px'},{k:'ld3',l:'♥3일',w:'58px'},{k:'ld7',l:'♥7일',w:'58px'},
+  {k:'ld1',l:'♥1일',w:'58px'},{k:'ld3',l:'♥3일',w:'58px'},{k:'ld7',l:'♥7일',w:'58px'},{k:'ldR',l:'♥기간',w:'64px'},
   {k:'rv',l:'리뷰',w:'52px'},{k:'stk',l:'재고',w:'58px'},
   {k:'launch',l:'발매일',w:'94px',ns:1},{k:'days',l:'D+',w:'46px',ns:1},
   {k:'chart',l:'',w:'28px',ns:1}
@@ -832,11 +868,11 @@ function renderTable(date){
   const surgeSet=new Set(calcSurge(3,100).map(r=>r.cd+'|'+r.ml));
   let rows=filtered(date).map(r=>{
     const info=getInfo(r.cd)||{},c=r.cd,m=r.ml;
-    return{...r,ld1:dN(c,m,date,'lk',1),ld3:dN(c,m,date,'lk',3),ld7:dN(c,m,date,'lk',7),
+    return{...r,ld1:dN(c,m,date,'lk',1),ld3:dN(c,m,date,'lk',3),ld7:dN(c,m,date,'lk',7),ldR:dRange(c,m,'lk'),
       pd1:dN(c,m,date,'pr',1),pd3:dN(c,m,date,'pr',3),
       stk:getStock(c),_model:info.m||'',_np:info.p||null,_launch:info.d||''};
   });
-  const SORT_MAP={ld1:'ld1',ld3:'ld3',ld7:'ld7',pd1:'pd1',pd3:'pd3',stk:'stk'};
+  const SORT_MAP={ld1:'ld1',ld3:'ld3',ld7:'ld7',ldR:'ldR',pd1:'pd1',pd3:'pd3',stk:'stk'};
   rows.sort((a,b)=>{
     const sk=SORT_MAP[sCol]||sCol;
     let va=a[sk]??(sCol==='stk'?-1:null),vb=b[sk]??(sCol==='stk'?-1:null);
@@ -867,7 +903,7 @@ function renderTable(date){
       <td class="disc">${r.dc!=null?r.dc+'%':'—'}</td>
       <td class="dc">${dH(r.pd1,'원')}</td><td class="dc">${dH(r.pd3,'원')}</td>
       <td class="mono">${r.lk!=null?r.lk.toLocaleString():'—'}</td>
-      <td class="dc">${dH(r.ld1)}</td><td class="dc">${dH(r.ld3)}</td><td class="dc">${dH(r.ld7)}</td>
+      <td class="dc">${dH(r.ld1)}</td><td class="dc">${dH(r.ld3)}</td><td class="dc">${dH(r.ld7)}</td><td class="dc" style="font-weight:600">${dH(r.ldR)}</td>
       <td class="rev">${r.rv!=null?r.rv:'—'}</td>
       <td><span class="${sc}">${r.stk!=null?r.stk:'—'}</span></td>
       <td><input type="date" class="di" value="${r._launch}" onchange="setLD('${r.cd}',this.value)"></td>
@@ -1042,23 +1078,10 @@ function render(){
     document.getElementById('snpi').style.display='none';
     return;
   }
+  updDateSel();
   const date=selDate()||latest();
-  // 기간 필터 적용
-  const period=document.getElementById('periodSel')?document.getElementById('periodSel').value:'all';
-  if(period!=='all'){
-    const cutoff=new Date();cutoff.setDate(cutoff.getDate()-parseInt(period));
-    const cutStr=cutoff.toISOString().slice(0,10);
-    // 기간 밖 날짜는 dateSelect에서 비활성화
-    const sel=document.getElementById('dateSel');
-    if(sel){[...sel.options].forEach(o=>{
-      if(o.value!=='latest') o.disabled=(o.value<cutStr);
-    });}
-  } else {
-    const sel=document.getElementById('dateSel');
-    if(sel)[...sel.options].forEach(o=>o.disabled=false);
-  }
   renderSummary(date);renderTable(date);
-  const si=document.getElementById('snpi');si.style.display='block';si.textContent='누적: '+dates().join(' · ');
+  const si=document.getElementById('snpi');si.style.display='block';si.textContent=`기간: ${startDate()} ~ ${date} · 누적 ${dates().length}일`;
 }
 
 let tt;
