@@ -216,7 +216,13 @@ td{padding:7px 9px;white-space:nowrap;vertical-align:middle}
       </select>
     </div>
     <div class="fg"><span class="fl">기간</span>
-      <select id="sDays" onchange="renderSurge()"><option value="1">1일</option><option value="3" selected>3일</option><option value="7">7일</option><option value="14">14일</option></select>
+      <input type="date" class="si" id="sFrom" style="width:132px" onchange="renderSurge()">
+      <span style="color:var(--muted);font-size:12px">~</span>
+      <input type="date" class="si" id="sTo" style="width:132px" onchange="renderSurge()">
+      <button class="pill" onclick="setSurgeRange(3)">3일</button>
+      <button class="pill" onclick="setSurgeRange(7)">7일</button>
+      <button class="pill" onclick="setSurgeRange(30)">30일</button>
+      <button class="pill" onclick="setSurgeRange('all')">전체</button>
     </div>
     <div class="fg"><span class="fl">최소 증가</span>
       <select id="sMin" onchange="renderSurge()">
@@ -785,12 +791,37 @@ function calcSurge(nD,minD,ch){
     return{...r,delta,pct:pr.lk>0?Math.round(delta/pr.lk*100):null,prevLk:pr.lk};
   }).sort((a,b)=>b.delta-a.delta);
 }
+// 급상승 날짜범위
+function sRangeFrom(){const f=document.getElementById('sFrom');const v=f&&f.value?f.value:'';const ds=dates();return v||ds[Math.max(0,ds.length-4)]||ds[0]||null;}
+function sRangeTo(){const t=document.getElementById('sTo');const v=t&&t.value?t.value:'';const ds=dates();return v||ds[ds.length-1]||null;}
+function updSurgeRange(){const ds=dates();if(!ds.length)return;const lo=ds[0],hi=ds[ds.length-1];const f=document.getElementById('sFrom'),t=document.getElementById('sTo');if(!f||!t)return;f.min=lo;f.max=hi;t.min=lo;t.max=hi;if(!f.value||f.value<lo||f.value>hi)f.value=ds[Math.max(0,ds.length-4)]||lo;if(!t.value||t.value>hi||t.value<lo)t.value=hi;}
+function setSurgeRange(n){const ds=dates();if(!ds.length)return;const hi=ds[ds.length-1];document.getElementById('sTo').value=hi;if(n==='all')document.getElementById('sFrom').value=ds[0];else{const c=new Date(hi);c.setDate(c.getDate()-n);const cs=c.toISOString().slice(0,10);document.getElementById('sFrom').value=ds.find(d=>d>=cs)||ds[0];}renderSurge();}
+function calcSurgeRange(minD,ch){
+  const ds=dates();if(ds.length<2)return[];
+  const to=sRangeTo(),from=sRangeFrom();
+  let endD=null;for(const d of ds)if(d<=to)endD=d;
+  let startD=null;for(const d of ds)if(d>=from){startD=d;break;}
+  if(!endD||!startD||endD<=startD)return[];
+  return(snapshots[endD]||[]).filter(r=>{
+    if(filters.sbrand!=='all'&&r.br!==filters.sbrand)return false;
+    if(ch&&r.ml!==ch)return false;
+    if(r.lk==null)return false;
+    const pr=(snapshots[startD]||[]).find(p=>p.cd===r.cd&&p.ml===r.ml);
+    return pr&&pr.lk!=null&&(r.lk-pr.lk)>=minD;
+  }).map(r=>{
+    const pr=(snapshots[startD]||[]).find(p=>p.cd===r.cd&&p.ml===r.ml);
+    const delta=r.lk-pr.lk;
+    return{...r,delta,pct:pr.lk>0?Math.round(delta/pr.lk*100):null,prevLk:pr.lk,_startD:startD,_endD:endD};
+  }).sort((a,b)=>b.delta-a.delta);
+}
 function renderSurge(){
-  const nD=+document.getElementById('sDays').value,minD=+document.getElementById('sMin').value;
+  updSurgeRange();
+  const minD=+document.getElementById('sMin').value;
   const ch=document.getElementById('sCh')?document.getElementById('sCh').value:'';
-  const items=calcSurge(nD,minD,ch),el=document.getElementById('surgeMain');
+  const items=calcSurgeRange(minD,ch),el=document.getElementById('surgeMain');
+  const from=sRangeFrom(),to=sRangeTo();
   if(!dates().length){el.innerHTML='<div class="empty"><div class="ei">🔥</div><h2>데이터 없음</h2></div>';return;}
-  if(!items.length){el.innerHTML=`<div class="empty"><div class="ei">💤</div><h2>이슈사항 없음</h2><p>${nD}일간 +${minD} 이상 없음</p></div>`;return;}
+  if(!items.length){el.innerHTML=`<div class="empty"><div class="ei">💤</div><h2>이슈사항 없음</h2><p>${from} ~ ${to} 구간 +${minD} 이상 없음</p></div>`;return;}
   const cards=items.map(r=>{
     const bc=r.br==='시티브리즈'?'bct':'bat',bs=r.br==='시티브리즈'?'CT':'AT';
     return`<div class="sc2" onclick="openChart('${r.cd}','${r.ml}','${esc(r.nm)}')">
@@ -822,9 +853,9 @@ function renderSurge(){
   el.innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:13px">
     <span style="font-size:18px">🔥</span>
     <div><div style="font-size:13px;font-weight:700;color:var(--surge)">이슈사항 검토 ${items.length}개</div>
-    <div style="font-size:11px;color:var(--muted)">최근 ${nD}일 · +${minD} 이상</div></div></div>
+    <div style="font-size:11px;color:var(--muted)">${from} ~ ${to} · +${minD} 이상</div></div></div>
   <div class="sg">${cards}</div>
-  <div class="tc"><div class="th"><div class="th-t">상세</div><div class="th-m">${items.length}개</div></div>
+  <div class="tc"><div class="th"><div class="th-t">상세 (기간 ${from} ~ ${to})</div><div class="th-m">${items.length}개</div></div>
   <div class="ts"><table><thead><tr><th>브랜드</th><th>채널</th><th>상품명</th><th>품번</th>
     <th>현재♥</th><th>이전♥</th><th>증가량</th><th>증가율</th>
     <th>정상가</th><th>판매가</th><th>재고</th><th>D+</th><th>링크</th><th></th>
