@@ -133,6 +133,9 @@ td{padding:7px 9px;white-space:nowrap;vertical-align:middle}
   <div class="nav-tabs" id="navTabs">
     <div class="tb on" id="tab-tracker" onclick="gPage('tracker',this)">📊 트래커</div>
     <div class="tb" id="tab-surge" onclick="gPage('surge',this)">🔥 급상승</div>
+    <div class="tb" id="tab-chcomp" onclick="gPage('chcomp',this)">🔀 채널비교</div>
+    <div class="tb" id="tab-bench" onclick="gPage('bench',this)">📈 발매성과</div>
+    <div class="tb" id="tab-diag" onclick="gPage('diag',this)">🩺 진단</div>
     <div class="tb" id="tab-sellic" onclick="gPage('sellic',this)">🔗 셀릭</div>
     <div class="tb" id="tab-launch" onclick="gPage('launch',this)">📅 발매일</div>
     <div class="tb" id="tab-stock" onclick="gPage('stock',this)">📦 재고</div>
@@ -230,8 +233,67 @@ td{padding:7px 9px;white-space:nowrap;vertical-align:middle}
         <option value="50">+50</option><option value="100" selected>+100</option><option value="200">+200</option>
       </select>
     </div>
+    <div class="fg"><span class="fl">재고</span>
+      <select id="sStock" onchange="renderSurge()">
+        <option value="all">전체</option>
+        <option value="low">⚠ 임박(≤10)</option>
+        <option value="zero">품절(0)</option>
+        <option value="has">재고있음</option>
+      </select>
+    </div>
   </div>
   <div class="main" id="surgeMain"><div class="empty"><div class="ei">🔥</div><h2>데이터 없음</h2></div></div>
+</div>
+
+<!-- CHANNEL COMPARE -->
+<div class="page" id="page-chcomp">
+  <div class="ctrl">
+    <div class="fg"><span class="fl">브랜드</span>
+      <button class="pill a" onclick="setF('ccbrand','all',this)">전체</button>
+      <button class="pill" onclick="setF('ccbrand','시티브리즈',this)">시티브리즈</button>
+      <button class="pill" onclick="setF('ccbrand','아티드',this)">아티드</button>
+    </div>
+    <input class="si" id="ccQ" placeholder="상품명 / 품번" oninput="renderChComp()">
+    <div class="fg" style="margin-left:auto"><span class="fl">정렬</span>
+      <select id="ccSort" onchange="renderChComp()">
+        <option value="total">합계 ♥</option>
+        <option value="wconcept">W컨셉 ♥</option>
+        <option value="29cm">29CM ♥</option>
+        <option value="zigzag">지그재그 ♥</option>
+        <option value="stk">재고</option>
+      </select>
+    </div>
+  </div>
+  <div class="main" id="ccMain"><div class="empty"><div class="ei">🔀</div><h2>데이터 없음</h2></div></div>
+</div>
+
+<!-- LAUNCH BENCHMARK -->
+<div class="page" id="page-bench">
+  <div class="ctrl">
+    <div class="fg"><span class="fl">브랜드</span>
+      <button class="pill a" onclick="setF('bnbrand','all',this)">전체</button>
+      <button class="pill" onclick="setF('bnbrand','시티브리즈',this)">시티브리즈</button>
+      <button class="pill" onclick="setF('bnbrand','아티드',this)">아티드</button>
+    </div>
+    <div class="fg"><span class="fl">채널</span>
+      <select id="bnCh" onchange="renderBench()">
+        <option value="">전체</option><option value="W컨셉">W컨셉</option>
+        <option value="29CM">29CM</option><option value="지그재그">지그재그</option>
+      </select>
+    </div>
+    <div class="fg"><span class="fl">기준</span>
+      <select id="bnMetric" onchange="renderBench()">
+        <option value="7">D+7 ♥</option><option value="14">D+14 ♥</option>
+        <option value="30" selected>D+30 ♥</option>
+      </select>
+    </div>
+  </div>
+  <div class="main" id="bnMain"><div class="empty"><div class="ei">📈</div><h2>발매일 등록된 상품이 없습니다</h2><p>발매일 탭에서 등록하면 여기에 성과가 뜹니다</p></div></div>
+</div>
+
+<!-- DIAGNOSTICS -->
+<div class="page" id="page-diag">
+  <div class="main" id="dgMain"><div class="empty"><div class="ei">🩺</div><h2>데이터 없음</h2></div></div>
 </div>
 
 <!-- LAUNCH -->
@@ -373,7 +435,7 @@ td{padding:7px 9px;white-space:nowrap;vertical-align:middle}
 <script>
 // ── 페이지 전환 ──────────────────────────────────────
 function gPage(id, el){
-  ['tracker','surge','sellic','launch','stock'].forEach(function(p){
+  ['tracker','surge','chcomp','bench','diag','sellic','launch','stock'].forEach(function(p){
     var pg=document.getElementById('page-'+p);
     if(pg) pg.classList.remove('on');
     var tb=document.getElementById('tab-'+p);
@@ -384,6 +446,9 @@ function gPage(id, el){
   var tb=document.getElementById('tab-'+id);
   if(tb) tb.classList.add('on');
   if(id==='surge')  renderSurge();
+  if(id==='chcomp') renderChComp();
+  if(id==='bench')  renderBench();
+  if(id==='diag')   renderDiag();
   if(id==='sellic') renderLaunch();
   if(id==='launch') renderLaunchDate();
   if(id==='stock')  renderStock();
@@ -391,7 +456,7 @@ function gPage(id, el){
 
 // ── STATE ──────────────────────────────────────────
 let snapshots={}, launchMap={}, stockMap={}, launchDateMap={};
-let filters={brand:'all',channel:'all',sbrand:'all'};
+let filters={brand:'all',channel:'all',sbrand:'all',ccbrand:'all',bnbrand:'all'};
 let sCol='lk', sDir='desc', curPage=1;
 const PG=50;
 let myChart=null, cCode=null, cMall=null, cMetric='lk';
@@ -706,7 +771,11 @@ function setF(key,val,btn){
   const g=btn.closest('.fg')||btn.parentElement;
   g.querySelectorAll('.pill').forEach(p=>p.className='pill');
   btn.className='pill '+(val==='all'?'a':val==='시티브리즈'?'ct':'at');
-  curPage=1;if(key==='sbrand')renderSurge();else render();
+  curPage=1;
+  if(key==='sbrand')renderSurge();
+  else if(key==='ccbrand')renderChComp();
+  else if(key==='bnbrand')renderBench();
+  else render();
 }
 function setChAll(btn){filters.channel='all';document.querySelectorAll('#chPills .pill').forEach(p=>p.className='pill');btn.className='pill a';curPage=1;render();}
 function setChF(val,btn){filters.channel=val;document.getElementById('chAll').className='pill';document.querySelectorAll('#chPills .pill').forEach(p=>p.className='pill');btn.className='pill a';curPage=1;render();}
@@ -811,14 +880,22 @@ function calcSurgeRange(minD,ch){
   }).map(r=>{
     const pr=(snapshots[startD]||[]).find(p=>p.cd===r.cd&&p.ml===r.ml);
     const delta=r.lk-pr.lk;
-    return{...r,delta,pct:pr.lk>0?Math.round(delta/pr.lk*100):null,prevLk:pr.lk,_startD:startD,_endD:endD};
+    return{...r,delta,pct:pr.lk>0?Math.round(delta/pr.lk*100):null,prevLk:pr.lk,_startD:startD,_endD:endD,_stk:getStock(r.cd)};
   }).sort((a,b)=>b.delta-a.delta);
+}
+function stockFilterPass(stk,mode){
+  if(mode==='low')  return stk!=null&&stk<=10;
+  if(mode==='zero') return stk===0;
+  if(mode==='has')  return stk!=null&&stk>0;
+  return true;
 }
 function renderSurge(){
   updSurgeRange();
   const minD=+document.getElementById('sMin').value;
   const ch=document.getElementById('sCh')?document.getElementById('sCh').value:'';
-  const items=calcSurgeRange(minD,ch),el=document.getElementById('surgeMain');
+  const stkMode=document.getElementById('sStock')?document.getElementById('sStock').value:'all';
+  const items=calcSurgeRange(minD,ch).filter(r=>stockFilterPass(r._stk,stkMode));
+  const el=document.getElementById('surgeMain');
   const from=sRangeFrom(),to=sRangeTo();
   if(!dates().length){el.innerHTML='<div class="empty"><div class="ei">🔥</div><h2>데이터 없음</h2></div>';return;}
   if(!items.length){el.innerHTML=`<div class="empty"><div class="ei">💤</div><h2>이슈사항 없음</h2><p>${from} ~ ${to} 구간 +${minD} 이상 없음</p></div>`;return;}
@@ -829,6 +906,7 @@ function renderSurge(){
       <div class="sc2-m"><span style="color:var(--muted)">${r.ml}</span>
         <span style="color:var(--surge);font-family:var(--mono);font-weight:700">+${r.delta}</span>
         ${r.pct!=null?`<span style="color:var(--muted);font-family:var(--mono)">(+${r.pct}%)</span>`:''}
+        ${r._stk!=null&&r._stk<=10?`<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:rgba(217,79,79,.12);color:var(--dn);border:1px solid rgba(217,79,79,.25);font-weight:600">⚠재고 ${r._stk}</span>`:''}
         <span class="sbg">이슈사항 검토</span>
         ${r.ur?`<a href="${r.ur}" target="_blank" style="color:var(--muted);font-size:11px;margin-left:auto" onclick="event.stopPropagation()">↗</a>`:''}
       </div></div>`;
@@ -850,16 +928,151 @@ function renderSurge(){
       <td>${r.ur?`<a href="${r.ur}" target="_blank" class="ab">↗</a>`:'—'}</td>
       <td><button class="ab" onclick="openChart('${r.cd}','${r.ml}','${esc(r.nm)}')">📈</button></td></tr>`;
   }).join('');
+  const lowCnt=items.filter(r=>r._stk!=null&&r._stk<=10).length;
   el.innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:13px">
     <span style="font-size:18px">🔥</span>
     <div><div style="font-size:13px;font-weight:700;color:var(--surge)">이슈사항 검토 ${items.length}개</div>
-    <div style="font-size:11px;color:var(--muted)">${from} ~ ${to} · +${minD} 이상</div></div></div>
+    <div style="font-size:11px;color:var(--muted)">${from} ~ ${to} · +${minD} 이상</div></div>
+    ${lowCnt>0?`<div style="margin-left:12px;padding:5px 11px;border-radius:8px;background:rgba(217,79,79,.1);border:1px solid rgba(217,79,79,.25);font-size:12px;color:var(--dn);font-weight:600">⚠ 급상승인데 재고임박 ${lowCnt}개 — 발주 검토</div>`:''}</div>
   <div class="sg">${cards}</div>
   <div class="tc"><div class="th"><div class="th-t">상세 (기간 ${from} ~ ${to})</div><div class="th-m">${items.length}개</div></div>
   <div class="ts"><table><thead><tr><th>브랜드</th><th>채널</th><th>상품명</th><th>품번</th>
     <th>현재♥</th><th>이전♥</th><th>증가량</th><th>증가율</th>
     <th>정상가</th><th>판매가</th><th>재고</th><th>D+</th><th>링크</th><th></th>
   </tr></thead><tbody>${trows}</tbody></table></div></div>`;
+}
+
+// ── 채널 통합 비교 (D) ────────────────────────────
+function renderChComp(){
+  const el=document.getElementById('ccMain');
+  const date=latest();
+  if(!date){el.innerHTML='<div class="empty"><div class="ei">🔀</div><h2>데이터 없음</h2></div>';return;}
+  const q=(document.getElementById('ccQ')?document.getElementById('ccQ').value:'').trim().toLowerCase();
+  const CHS=['W컨셉','29CM','지그재그'];
+  const groups={};
+  for(const r of (snapshots[date]||[])){
+    if(filters.ccbrand!=='all'&&r.br!==filters.ccbrand)continue;
+    const info=launchMap[r.cd]||{};
+    const model=(info.m&&info.m.toLowerCase()!=='nan')?info.m:r.cd;
+    if(!groups[model])groups[model]={model,br:r.br,nm:r.nm};
+    const g=groups[model];
+    if(r.lk!=null)g[r.ml]=(g[r.ml]||0)+r.lk;
+    if(!g.nm&&r.nm)g.nm=r.nm;
+  }
+  let arr=Object.values(groups).map(g=>{
+    const total=CHS.reduce((s,c)=>s+(g[c]||0),0);
+    const stk=stockMap[g.model]!=null?stockMap[g.model]:null;
+    return{...g,total,stk};
+  });
+  if(q)arr=arr.filter(g=>(g.nm||'').toLowerCase().includes(q)||(g.model||'').toLowerCase().includes(q));
+  const km={total:'total',wconcept:'W컨셉','29cm':'29CM',zigzag:'지그재그',stk:'stk'};
+  const sk=km[document.getElementById('ccSort').value]||'total';
+  arr.sort((a,b)=>(b[sk]==null?-1:b[sk])-(a[sk]==null?-1:a[sk]));
+  if(!arr.length){el.innerHTML='<div class="empty"><div class="ei">🔀</div><h2>조건에 맞는 상품 없음</h2></div>';return;}
+  const cell=v=>v!=null?`<span class="mono">${v.toLocaleString()}</span>`:'<span class="flat">—</span>';
+  const trows=arr.slice(0,300).map(g=>{
+    const bc=g.br==='시티브리즈'?'bct':'bat',bs=g.br==='시티브리즈'?'CT':'AT';
+    const sc=g.stk!=null?(g.stk>10?'sok':g.stk>0?'slow':'sno'):'sna';
+    const nCh=CHS.filter(c=>g[c]!=null).length;
+    return`<tr><td><span class="bt ${bc}">${bs}</span></td><td class="cc">${g.model}</td>
+      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;font-size:12px">${g.nm||'—'}</td>
+      <td>${cell(g['W컨셉'])}</td><td>${cell(g['29CM'])}</td><td>${cell(g['지그재그'])}</td>
+      <td class="mono" style="font-weight:700">${g.total.toLocaleString()}</td>
+      <td>${nCh>1?`<span class="db dn30">${nCh}채널</span>`:`<span class="db">${nCh}채널</span>`}</td>
+      <td><span class="${sc}">${g.stk!=null?g.stk:'—'}</span></td></tr>`;
+  }).join('');
+  el.innerHTML=`<div class="tc"><div class="th"><div class="th-t">채널 통합 비교</div><div class="th-m">${arr.length}개 품번 · ${date} 기준</div></div>
+    <div class="ts"><table><thead><tr><th>브랜드</th><th>품번</th><th>상품명</th>
+      <th>W컨셉♥</th><th>29CM♥</th><th>지그재그♥</th><th>합계♥</th><th>노출채널</th><th>재고</th>
+    </tr></thead><tbody>${trows}</tbody></table></div></div>`;
+}
+
+// ── 발매 성과 벤치마크 D+N (B) ────────────────────
+function renderBench(){
+  const el=document.getElementById('bnMain');
+  const N=+document.getElementById('bnMetric').value;
+  const ch=document.getElementById('bnCh')?document.getElementById('bnCh').value:'';
+  const ds=dates();
+  const entries=Object.entries(launchDateMap).filter(([,d])=>d);
+  if(!entries.length){el.innerHTML='<div class="empty"><div class="ei">📈</div><h2>발매일 등록된 상품이 없습니다</h2><p>발매일 탭에서 등록하면 여기에 D+N 성과가 뜹니다</p></div>';return;}
+  const results=[];
+  for(const [model,ld] of entries){
+    const t=new Date(ld);t.setDate(t.getDate()+N);
+    const ts=t.toISOString().slice(0,10);
+    const snapD=ds.find(d=>d>=ts);
+    if(!snapD)continue;
+    const codes=Object.entries(launchMap).filter(([,v])=>v.m===model).map(([c])=>c);
+    if(!codes.length)continue;
+    let lk=null,nm='',brand='';
+    for(const r of (snapshots[snapD]||[])){
+      if(!codes.includes(r.cd))continue;
+      if(ch&&r.ml!==ch)continue;
+      if(r.lk!=null){lk=(lk||0)+r.lk;}
+      if(!nm&&r.nm)nm=r.nm; if(r.br)brand=r.br;
+    }
+    if(lk==null)continue;
+    if(filters.bnbrand!=='all'&&brand!==filters.bnbrand)continue;
+    results.push({model,ld,lk,nm,brand,snapD,stk:stockMap[model]!=null?stockMap[model]:null});
+  }
+  if(!results.length){el.innerHTML=`<div class="empty"><div class="ei">⏳</div><h2>D+${N} 도달 상품 없음</h2><p>발매 후 ${N}일이 지난 데이터가 아직 없습니다</p></div>`;return;}
+  results.sort((a,b)=>b.lk-a.lk);
+  const avg=Math.round(results.reduce((s,r)=>s+r.lk,0)/results.length);
+  const trows=results.map((r,i)=>{
+    const bc=r.brand==='시티브리즈'?'bct':'bat',bs=r.brand==='시티브리즈'?'CT':'AT';
+    const sc=r.stk!=null?(r.stk>10?'sok':r.stk>0?'slow':'sno'):'sna';
+    const vs=r.lk-avg;
+    return`<tr><td class="mono" style="color:var(--muted)">${i+1}</td>
+      <td><span class="bt ${bc}">${bs}</span></td><td class="cc">${r.model}</td>
+      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;font-size:12px">${r.nm||'—'}</td>
+      <td class="cc">${r.ld}</td>
+      <td class="mono" style="font-weight:700">${r.lk.toLocaleString()}</td>
+      <td class="dc">${dH(vs)}</td>
+      <td><span class="${sc}">${r.stk!=null?r.stk:'—'}</span></td></tr>`;
+  }).join('');
+  el.innerHTML=`<div class="scards" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+      <div class="sc"><div class="sc-l">D+${N} 벤치마크 상품</div><div class="sc-v">${results.length}</div></div>
+      <div class="sc"><div class="sc-l">평균 좋아요 (D+${N})</div><div class="sc-v">${avg.toLocaleString()}</div></div>
+      <div class="sc"><div class="sc-l">최고 성과</div><div class="sc-v" style="font-size:12px;line-height:1.5;margin-top:4px">♥ ${results[0].lk.toLocaleString()}<br>${(results[0].nm||'').slice(0,18)}</div></div>
+    </div>
+    <div class="tc"><div class="th"><div class="th-t">발매 후 D+${N} 좋아요 순위</div><div class="th-m">발매일 기준 같은 경과일 비교</div></div>
+    <div class="ts"><table><thead><tr><th>#</th><th>브랜드</th><th>품번</th><th>상품명</th><th>발매일</th><th>D+${N} ♥</th><th>평균대비</th><th>재고</th>
+    </tr></thead><tbody>${trows}</tbody></table></div></div>`;
+}
+
+// ── 데이터 진단 (E) ───────────────────────────────
+function renderDiag(){
+  const el=document.getElementById('dgMain');
+  const date=latest();
+  if(!date){el.innerHTML='<div class="empty"><div class="ei">🩺</div><h2>데이터 없음</h2></div>';return;}
+  const rows=snapshots[date]||[];
+  const codes=[...new Set(rows.map(r=>r.cd))];
+  const models=new Set(Object.values(launchMap).map(v=>v.m).filter(Boolean));
+  const stockPbns=Object.keys(stockMap);
+  const noLink=codes.filter(c=>!launchMap[c]);                    // 채널코드인데 정상가/품번 연동 없음
+  const stockNoModel=stockPbns.filter(p=>!models.has(p));         // 재고 품번인데 연동(linkage)에 없음
+  const noLaunch=[...models].filter(m=>!launchDateMap[m]);        // 품번인데 발매일 미등록
+  const matchedStock=stockPbns.filter(p=>models.has(p));
+  const nullLk=rows.filter(r=>r.lk==null).length;
+  const card=(icon,title,val,desc,color)=>`<div class="sc" style="border-left:3px solid ${color}"><div class="sc-l">${icon} ${title}</div><div class="sc-v">${val.toLocaleString()}</div><div class="sc-d" style="color:var(--muted)">${desc}</div></div>`;
+  const sampleTbl=(title,items,fmt)=>{
+    if(!items.length)return`<div class="card"><div class="ch2"><div class="ct2">${title}</div><span style="font-size:11px;color:var(--up)">✓ 없음</span></div></div>`;
+    const rws=items.slice(0,50).map(fmt).join('');
+    return`<div class="card"><div class="ch2"><div class="ct2">${title}</div><span style="font-size:11px;color:var(--muted)">${items.length}건${items.length>50?' (상위 50)':''}</span></div>
+      <div class="sw"><table class="st"><tbody>${rws}</tbody></table></div></div>`;
+  };
+  el.innerHTML=`<div class="sp">
+    <div class="scards" style="grid-template-columns:repeat(4,1fr)">
+      ${card('🔗','정상가 미연동 채널코드',noLink.length,'linkage에 없음 → 정상가·품번 공란',noLink.length?'var(--dn)':'var(--up)')}
+      ${card('📦','미연동 재고 품번',stockNoModel.length,'재고는 있으나 linkage에 없음',stockNoModel.length?'var(--warn)':'var(--up)')}
+      ${card('📅','발매일 미등록 품번',noLaunch.length,'D+ 성과추적 불가',noLaunch.length?'var(--warn)':'var(--up)')}
+      ${card('✅','재고 매칭 품번',matchedStock.length,`전체 재고 ${stockPbns.length}개 중`,'var(--up)')}
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin:10px 0">${date} 기준 · 좋아요 미수집 ${nullLk}건 · 채널코드 ${codes.length}개 · linkage 품번 ${models.size}개</div>
+    <div class="spg">
+      ${sampleTbl('🔗 정상가 미연동 채널코드',noLink,c=>{const r=rows.find(x=>x.cd===c)||{};return`<tr><td class="cc">${c}</td><td style="font-size:11px;color:var(--sub2);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.nm||''}</td><td><span class="ch">${r.ml||''}</span></td></tr>`;})}
+      ${sampleTbl('📦 미연동 재고 품번',stockNoModel,p=>`<tr><td class="cc">${p}</td><td class="mono" style="color:var(--sub2)">재고 ${stockMap[p]}</td></tr>`)}
+    </div>
+  </div>`;
 }
 
 // ── SUMMARY ───────────────────────────────────────
