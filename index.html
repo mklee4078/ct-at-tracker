@@ -455,29 +455,30 @@ function gPage(id, el){
 }
 
 // ── STATE ──────────────────────────────────────────
-let snapshots={}, launchMap={}, stockMap={}, launchDateMap={};
+let snapshots={}, launchMap={}, stockMap={}, launchDateMap={}, priceMap={};
 let filters={brand:'all',channel:'all',sbrand:'all',ccbrand:'all',bnbrand:'all'};
 let sCol='lk', sDir='desc', curPage=1;
 const PG=50;
 let myChart=null, cCode=null, cMall=null, cMetric='lk';
-const SK='ctat_s2', LK='ctat_l2', STK='ctat_k2', LDK='ctat_ld1';
+const SK='ctat_s2', LK='ctat_l2', STK='ctat_k2', LDK='ctat_ld1', PK='ctat_p1';
 
 // ── 저장/로드 ──────────────────────────────────────
 function sv(key,data){try{localStorage.setItem(key,JSON.stringify(data));}catch(e){toast('저장 실패','err');}}
-function saveAll(){sv(SK,snapshots);sv(LK,launchMap);sv(STK,stockMap);sv(LDK,launchDateMap);}
+function saveAll(){sv(SK,snapshots);sv(LK,launchMap);sv(STK,stockMap);sv(LDK,launchDateMap);sv(PK,priceMap);}
 function loadAll(){
   try{
-    const s=localStorage.getItem(SK),l=localStorage.getItem(LK),k=localStorage.getItem(STK),ld=localStorage.getItem(LDK);
+    const s=localStorage.getItem(SK),l=localStorage.getItem(LK),k=localStorage.getItem(STK),ld=localStorage.getItem(LDK),pp=localStorage.getItem(PK);
     if(s)snapshots=JSON.parse(s);
     if(l)launchMap=JSON.parse(l);
     if(k)stockMap=JSON.parse(k);
     if(ld)launchDateMap=JSON.parse(ld);
+    if(pp)priceMap=JSON.parse(pp);
   }catch(e){}
 }
 function clearAll(){
   if(!confirm('모든 데이터 초기화?'))return;
-  snapshots={};launchMap={};stockMap={};
-  [SK,LK,STK,LDK].forEach(k=>localStorage.removeItem(k));launchDateMap={};
+  snapshots={};launchMap={};stockMap={};priceMap={};
+  [SK,LK,STK,LDK,PK].forEach(k=>localStorage.removeItem(k));launchDateMap={};
   render();renderLaunch();renderStock();updBadge();
   toast('초기화 완료');
 }
@@ -501,6 +502,10 @@ async function syncData(){
     const sm=d.stockMap||d.k||{};
     if(Object.keys(lm).length>0) launchMap=lm;
     if(Object.keys(sm).length>0) stockMap=sm;
+
+    // 정상가: 셀릭 메인시트 기준 (품번 → 판매가)
+    const pm2=d.priceMap||d.pm||{};
+    if(Object.keys(pm2).length>0) priceMap=pm2;
 
     // 발매일: 서버(tracker_data.json)를 우선, 로컬 입력분은 보존
     const ldm=d.launchDateMap||d.ld||{};
@@ -560,6 +565,8 @@ function mergeData(d){
   // 재고: 항상 완전 교체 (최신 파일이 가장 정확)
   const sm=d.stockMap||d.k||{};
   if(Object.keys(sm).length>0) stockMap=sm;
+  const pm3=d.priceMap||d.pm||{};
+  if(Object.keys(pm3).length>0) priceMap=pm3;
   const ldm=d.launchDateMap||d.ld||{};
   Object.assign(launchDateMap,ldm);
   saveAll();updChPills();updDateSel();render();renderLaunch();renderStock();updBadge();
@@ -843,6 +850,8 @@ function getInfo(cd){
   return{...info, d:launchDate};
 }
 function getStock(cd){const i=getInfo(cd);if(!i||!i.m)return null;const q=stockMap[i.m];return q!=null?q:null;}
+// 정상가: 셀릭 메인시트(품번) 우선, 없으면 linkage 판매가
+function getPrice(cd){const i=getInfo(cd);const m=i&&i.m?i.m:null;if(m&&priceMap[m]!=null)return priceMap[m];return i&&i.p!=null?i.p:null;}
 
 // ── SURGE ─────────────────────────────────────────
 function calcSurge(nD,minD,ch){
@@ -913,7 +922,7 @@ function renderSurge(){
   }).join('');
   const trows=items.map(r=>{
     const bc=r.br==='시티브리즈'?'bct':'bat',bs=r.br==='시티브리즈'?'CT':'AT';
-    const info=getInfo(r.cd)||{},stk=getStock(r.cd);
+    const info=getInfo(r.cd)||{},stk=getStock(r.cd),np=getPrice(r.cd);
     const sc=stk!=null?(stk>10?'sok':stk>0?'slow':'sno'):'sna';
     return`<tr class="surge"><td><span class="bt ${bc}">${bs}</span></td><td><span class="ch">${r.ml}</span></td>
       <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;font-size:12px">${r.nm}</td>
@@ -921,7 +930,7 @@ function renderSurge(){
       <td class="mono">${r.lk.toLocaleString()}</td><td class="mono" style="color:var(--muted)">${r.prevLk.toLocaleString()}</td>
       <td style="color:var(--surge);font-family:var(--mono);font-weight:700">+${r.delta}</td>
       <td style="color:var(--surge);font-family:var(--mono)">${r.pct!=null?'+'+r.pct+'%':'—'}</td>
-      <td class="mono">${info.p!=null?info.p.toLocaleString()+'원':'—'}</td>
+      <td class="mono">${np!=null?np.toLocaleString()+'원':'—'}</td>
       <td class="mono">${r.pr!=null?r.pr.toLocaleString()+'원':'—'}</td>
       <td><span class="${sc}">${stk!=null?stk:'—'}</span></td>
       <td>${info.d?daysEl(info.d):'—'}</td>
@@ -1114,7 +1123,7 @@ function renderTable(date){
     const info=getInfo(r.cd)||{},c=r.cd,m=r.ml;
     return{...r,ld1:dN(c,m,date,'lk',1),ld3:dN(c,m,date,'lk',3),ld7:dN(c,m,date,'lk',7),ldR:dRange(c,m,'lk'),
       pd1:dN(c,m,date,'pr',1),pd3:dN(c,m,date,'pr',3),
-      stk:getStock(c),_model:info.m||'',_np:info.p||null,_launch:info.d||''};
+      stk:getStock(c),_model:info.m||'',_np:getPrice(c),_launch:info.d||''};
   });
   const SORT_MAP={ld1:'ld1',ld3:'ld3',ld7:'ld7',ldR:'ldR',pd1:'pd1',pd3:'pd3',stk:'stk'};
   rows.sort((a,b)=>{
