@@ -260,6 +260,7 @@ td{padding:7px 9px;white-space:nowrap;vertical-align:middle}
         <option value="wconcept">W컨셉 ♥</option>
         <option value="29cm">29CM ♥</option>
         <option value="zigzag">지그재그 ♥</option>
+        <option value="price">정상가</option>
         <option value="stk">재고</option>
       </select>
     </div>
@@ -285,6 +286,21 @@ td{padding:7px 9px;white-space:nowrap;vertical-align:middle}
       <select id="bnMetric" onchange="renderBench()">
         <option value="7">D+7 ♥</option><option value="14">D+14 ♥</option>
         <option value="30" selected>D+30 ♥</option>
+      </select>
+    </div>
+    <div class="fg"><span class="fl">발매일</span>
+      <input type="date" class="si" id="bnFrom" style="width:128px" onchange="renderBench()">
+      <span style="color:var(--muted);font-size:12px">~</span>
+      <input type="date" class="si" id="bnTo" style="width:128px" onchange="renderBench()">
+    </div>
+    <div class="fg" style="margin-left:auto"><span class="fl">정렬</span>
+      <select id="bnSort" onchange="renderBench()">
+        <option value="lk">좋아요</option>
+        <option value="ld">발매일</option>
+        <option value="stk">재고</option>
+      </select>
+      <select id="bnDir" onchange="renderBench()">
+        <option value="desc">내림차순 ↓</option><option value="asc">오름차순 ↑</option>
       </select>
     </div>
   </div>
@@ -971,28 +987,40 @@ function renderChComp(){
   let arr=Object.values(groups).map(g=>{
     const total=CHS.reduce((s,c)=>s+(g[c]||0),0);
     const stk=stockMap[g.model]!=null?stockMap[g.model]:null;
-    return{...g,total,stk};
+    const np=priceMap[g.model]!=null?priceMap[g.model]:null;
+    const best=CHS.reduce((b,c)=>(g[c]||0)>(g[b]||-1)?c:b,CHS[0]);
+    return{...g,total,stk,np,best};
   });
   if(q)arr=arr.filter(g=>(g.nm||'').toLowerCase().includes(q)||(g.model||'').toLowerCase().includes(q));
-  const km={total:'total',wconcept:'W컨셉','29cm':'29CM',zigzag:'지그재그',stk:'stk'};
+  const km={total:'total',wconcept:'W컨셉','29cm':'29CM',zigzag:'지그재그',stk:'stk',price:'np'};
   const sk=km[document.getElementById('ccSort').value]||'total';
   arr.sort((a,b)=>(b[sk]==null?-1:b[sk])-(a[sk]==null?-1:a[sk]));
   if(!arr.length){el.innerHTML='<div class="empty"><div class="ei">🔀</div><h2>조건에 맞는 상품 없음</h2></div>';return;}
-  const cell=v=>v!=null?`<span class="mono">${v.toLocaleString()}</span>`:'<span class="flat">—</span>';
+  const chCount={};CHS.forEach(c=>chCount[c]=arr.filter(g=>g[c]!=null).length);
+  const multiCh=arr.filter(g=>CHS.filter(c=>g[c]!=null).length>1).length;
+  const chCell=(g,c)=>{const v=g[c];if(v==null)return '<span class="flat">—</span>';const b=c===g.best&&g.total>0;return `<span class="mono"${b?' style="font-weight:700;color:var(--ac)"':''}>${v.toLocaleString()}</span>`;};
   const trows=arr.slice(0,300).map(g=>{
     const bc=g.br==='시티브리즈'?'bct':'bat',bs=g.br==='시티브리즈'?'CT':'AT';
     const sc=g.stk!=null?(g.stk>10?'sok':g.stk>0?'slow':'sno'):'sna';
     const nCh=CHS.filter(c=>g[c]!=null).length;
     return`<tr><td><span class="bt ${bc}">${bs}</span></td><td class="cc">${g.model}</td>
-      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;font-size:12px">${g.nm||'—'}</td>
-      <td>${cell(g['W컨셉'])}</td><td>${cell(g['29CM'])}</td><td>${cell(g['지그재그'])}</td>
+      <td style="max-width:210px;overflow:hidden;text-overflow:ellipsis;font-size:12px">${g.nm||'—'}</td>
+      <td>${chCell(g,'W컨셉')}</td><td>${chCell(g,'29CM')}</td><td>${chCell(g,'지그재그')}</td>
       <td class="mono" style="font-weight:700">${g.total.toLocaleString()}</td>
       <td>${nCh>1?`<span class="db dn30">${nCh}채널</span>`:`<span class="db">${nCh}채널</span>`}</td>
+      <td class="mono">${g.np!=null?g.np.toLocaleString()+'원':'—'}</td>
       <td><span class="${sc}">${g.stk!=null?g.stk:'—'}</span></td></tr>`;
   }).join('');
-  el.innerHTML=`<div class="tc"><div class="th"><div class="th-t">채널 통합 비교</div><div class="th-m">${arr.length}개 품번 · ${date} 기준</div></div>
+  el.innerHTML=`<div class="scards" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px">
+      <div class="sc"><div class="sc-l">비교 품번</div><div class="sc-v">${arr.length}</div></div>
+      <div class="sc"><div class="sc-l">2채널＋ 동시노출</div><div class="sc-v">${multiCh}</div></div>
+      <div class="sc"><div class="sc-l">W컨셉 노출</div><div class="sc-v">${chCount['W컨셉']}</div></div>
+      <div class="sc"><div class="sc-l">29CM 노출</div><div class="sc-v">${chCount['29CM']}</div></div>
+      <div class="sc"><div class="sc-l">지그재그 노출</div><div class="sc-v">${chCount['지그재그']}</div></div>
+    </div>
+    <div class="tc"><div class="th"><div class="th-t">채널 통합 비교 <span style="font-weight:400;color:var(--muted);font-size:11px">· 파란 숫자 = 최다 채널</span></div><div class="th-m">${arr.length}개 품번 · ${date} 기준</div></div>
     <div class="ts"><table><thead><tr><th>브랜드</th><th>품번</th><th>상품명</th>
-      <th>W컨셉♥</th><th>29CM♥</th><th>지그재그♥</th><th>합계♥</th><th>노출채널</th><th>재고</th>
+      <th>W컨셉♥</th><th>29CM♥</th><th>지그재그♥</th><th>합계♥</th><th>노출채널</th><th>정상가</th><th>재고</th>
     </tr></thead><tbody>${trows}</tbody></table></div></div>`;
 }
 
@@ -1004,8 +1032,12 @@ function renderBench(){
   const ds=dates();
   const entries=Object.entries(launchDateMap).filter(([,d])=>d);
   if(!entries.length){el.innerHTML='<div class="empty"><div class="ei">📈</div><h2>발매일 등록된 상품이 없습니다</h2><p>발매일 탭에서 등록하면 여기에 D+N 성과가 뜹니다</p></div>';return;}
+  const bnFrom=document.getElementById('bnFrom')?document.getElementById('bnFrom').value:'';
+  const bnTo=document.getElementById('bnTo')?document.getElementById('bnTo').value:'';
   const results=[];
   for(const [model,ld] of entries){
+    if(bnFrom&&ld<bnFrom)continue;
+    if(bnTo&&ld>bnTo)continue;
     const t=new Date(ld);t.setDate(t.getDate()+N);
     const ts=t.toISOString().slice(0,10);
     const snapD=ds.find(d=>d>=ts);
@@ -1024,8 +1056,19 @@ function renderBench(){
     results.push({model,ld,lk,nm,brand,snapD,stk:stockMap[model]!=null?stockMap[model]:null});
   }
   if(!results.length){el.innerHTML=`<div class="empty"><div class="ei">⏳</div><h2>D+${N} 도달 상품 없음</h2><p>발매 후 ${N}일이 지난 데이터가 아직 없습니다</p></div>`;return;}
-  results.sort((a,b)=>b.lk-a.lk);
   const avg=Math.round(results.reduce((s,r)=>s+r.lk,0)/results.length);
+  const topLk=results.reduce((m,r)=>r.lk>m.lk?r:m,results[0]);
+  const sortCol=document.getElementById('bnSort')?document.getElementById('bnSort').value:'lk';
+  const dir=document.getElementById('bnDir')?document.getElementById('bnDir').value:'desc';
+  results.sort((a,b)=>{
+    let va,vb;
+    if(sortCol==='ld'){va=a.ld;vb=b.ld;}
+    else if(sortCol==='stk'){va=a.stk==null?-1:a.stk;vb=b.stk==null?-1:b.stk;}
+    else {va=a.lk;vb=b.lk;}
+    if(va<vb)return dir==='asc'?-1:1;
+    if(va>vb)return dir==='asc'?1:-1;
+    return 0;
+  });
   const trows=results.map((r,i)=>{
     const bc=r.brand==='시티브리즈'?'bct':'bat',bs=r.brand==='시티브리즈'?'CT':'AT';
     const sc=r.stk!=null?(r.stk>10?'sok':r.stk>0?'slow':'sno'):'sna';
@@ -1041,7 +1084,7 @@ function renderBench(){
   el.innerHTML=`<div class="scards" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
       <div class="sc"><div class="sc-l">D+${N} 벤치마크 상품</div><div class="sc-v">${results.length}</div></div>
       <div class="sc"><div class="sc-l">평균 좋아요 (D+${N})</div><div class="sc-v">${avg.toLocaleString()}</div></div>
-      <div class="sc"><div class="sc-l">최고 성과</div><div class="sc-v" style="font-size:12px;line-height:1.5;margin-top:4px">♥ ${results[0].lk.toLocaleString()}<br>${(results[0].nm||'').slice(0,18)}</div></div>
+      <div class="sc"><div class="sc-l">최고 성과</div><div class="sc-v" style="font-size:12px;line-height:1.5;margin-top:4px">♥ ${topLk.lk.toLocaleString()}<br>${(topLk.nm||'').slice(0,18)}</div></div>
     </div>
     <div class="tc"><div class="th"><div class="th-t">발매 후 D+${N} 좋아요 순위</div><div class="th-m">발매일 기준 같은 경과일 비교</div></div>
     <div class="ts"><table><thead><tr><th>#</th><th>브랜드</th><th>품번</th><th>상품명</th><th>발매일</th><th>D+${N} ♥</th><th>평균대비</th><th>재고</th>
