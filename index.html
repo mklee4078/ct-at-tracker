@@ -143,6 +143,7 @@ td{padding:7px 9px;white-space:nowrap;vertical-align:middle}
   <div class="nav-r">
     <span class="nb" id="snapBadge">스냅샷 0개</span>
     <span class="sync-info" id="syncInfo"></span>
+    <a class="btn" href="influencer.html" style="text-decoration:none">📣 인플루언서</a>
     <button class="btn pri" onclick="syncData()">🔄 데이터 새로고침</button>
     <button class="btn" onclick="document.getElementById('fDaily').click()">📂 직접 업로드</button>
     <input type="file" id="fDaily" accept=".xlsx,.xls" multiple>
@@ -194,7 +195,7 @@ td{padding:7px 9px;white-space:nowrap;vertical-align:middle}
       <div class="sc"><div class="sc-l">누적 날짜</div><div class="sc-v" id="sc-days">—</div></div>
     </div>
     <div class="tc">
-      <div class="th"><div class="th-t">상품 목록</div><div class="th-m" id="tMeta"></div></div>
+      <div class="th"><div class="th-t">상품 목록</div><div style="display:flex;gap:8px;align-items:center"><span class="th-m" id="tMeta"></span><button class="btn" onclick="exportTracker()">⬇ 엑셀 다운로드</button></div></div>
       <div class="ts" id="tCon"><div class="empty"><div class="ei">📊</div><h2>🔄 데이터 새로고침을 눌러주세요</h2></div></div>
       <div class="pager" id="pager" style="display:none"></div>
       <div class="snpi" id="snpi" style="display:none"></div>
@@ -219,9 +220,9 @@ td{padding:7px 9px;white-space:nowrap;vertical-align:middle}
       </select>
     </div>
     <div class="fg"><span class="fl">기간</span>
-      <input type="date" class="si" id="sFrom" style="width:132px" onchange="renderSurge()">
+      <input type="date" class="si" id="sFrom" style="width:132px" onchange="sRangeTouched=true;renderSurge()">
       <span style="color:var(--muted);font-size:12px">~</span>
-      <input type="date" class="si" id="sTo" style="width:132px" onchange="renderSurge()">
+      <input type="date" class="si" id="sTo" style="width:132px" onchange="sRangeTouched=true;renderSurge()">
       <button class="pill" onclick="setSurgeRange(3)">3일</button>
       <button class="pill" onclick="setSurgeRange(7)">7일</button>
       <button class="pill" onclick="setSurgeRange(30)">30일</button>
@@ -474,6 +475,7 @@ function gPage(id, el){
 let snapshots={}, launchMap={}, stockMap={}, launchDateMap={}, priceMap={};
 let filters={brand:'all',channel:'all',sbrand:'all',ccbrand:'all',bnbrand:'all'};
 let sCol='lk', sDir='desc', curPage=1;
+let rangeTouched=false, sRangeTouched=false;   // 사용자가 기간을 직접 조정했는지 (조정 전엔 항상 최신까지 따라감)
 const PG=50;
 let myChart=null, cCode=null, cMall=null, cMetric='lk';
 const SK='ctat_s2', LK='ctat_l2', STK='ctat_k2', LDK='ctat_ld1', PK='ctat_p1';
@@ -810,6 +812,7 @@ function updDateSel(){
   const f=document.getElementById('fromDate'),t=document.getElementById('toDate');
   if(!f||!t)return;
   f.min=lo;f.max=hi;t.min=lo;t.max=hi;
+  if(!rangeTouched){f.value=lo;t.value=hi;return;}   // 미조정: 항상 전체(최신까지)
   if(!f.value||f.value<lo||f.value>hi)f.value=lo;
   if(!t.value||t.value>hi||t.value<lo)t.value=hi;
 }
@@ -819,8 +822,9 @@ function rangeTo(){const t=document.getElementById('toDate');const v=t&&t.value?
 function selDate(){const ds=dates();const to=rangeTo();let r=null;for(const d of ds)if(d<=to)r=d;return r||latest();}
 // 기간 시작 기준일 = 시작일 이상 가장 가까운 스냅샷
 function startDate(){const ds=dates();const fr=rangeFrom();for(const d of ds)if(d>=fr)return d;return ds[0]||null;}
-function onRange(){curPage=1;render();}
+function onRange(){rangeTouched=true;curPage=1;render();}
 function setRange(n){
+  rangeTouched=true;
   const ds=dates();if(!ds.length)return;
   const hi=ds[ds.length-1];
   document.getElementById('toDate').value=hi;
@@ -888,8 +892,8 @@ function calcSurge(nD,minD,ch){
 // 급상승 날짜범위
 function sRangeFrom(){const f=document.getElementById('sFrom');const v=f&&f.value?f.value:'';const ds=dates();return v||ds[Math.max(0,ds.length-4)]||ds[0]||null;}
 function sRangeTo(){const t=document.getElementById('sTo');const v=t&&t.value?t.value:'';const ds=dates();return v||ds[ds.length-1]||null;}
-function updSurgeRange(){const ds=dates();if(!ds.length)return;const lo=ds[0],hi=ds[ds.length-1];const f=document.getElementById('sFrom'),t=document.getElementById('sTo');if(!f||!t)return;f.min=lo;f.max=hi;t.min=lo;t.max=hi;if(!f.value||f.value<lo||f.value>hi)f.value=ds[Math.max(0,ds.length-4)]||lo;if(!t.value||t.value>hi||t.value<lo)t.value=hi;}
-function setSurgeRange(n){const ds=dates();if(!ds.length)return;const hi=ds[ds.length-1];document.getElementById('sTo').value=hi;if(n==='all')document.getElementById('sFrom').value=ds[0];else{const c=new Date(hi);c.setDate(c.getDate()-n);const cs=c.toISOString().slice(0,10);document.getElementById('sFrom').value=ds.find(d=>d>=cs)||ds[0];}renderSurge();}
+function updSurgeRange(){const ds=dates();if(!ds.length)return;const lo=ds[0],hi=ds[ds.length-1];const f=document.getElementById('sFrom'),t=document.getElementById('sTo');if(!f||!t)return;f.min=lo;f.max=hi;t.min=lo;t.max=hi;if(!sRangeTouched){f.value=ds[Math.max(0,ds.length-4)]||lo;t.value=hi;return;}if(!f.value||f.value<lo||f.value>hi)f.value=ds[Math.max(0,ds.length-4)]||lo;if(!t.value||t.value>hi||t.value<lo)t.value=hi;}
+function setSurgeRange(n){sRangeTouched=true;const ds=dates();if(!ds.length)return;const hi=ds[ds.length-1];document.getElementById('sTo').value=hi;if(n==='all')document.getElementById('sFrom').value=ds[0];else{const c=new Date(hi);c.setDate(c.getDate()-n);const cs=c.toISOString().slice(0,10);document.getElementById('sFrom').value=ds.find(d=>d>=cs)||ds[0];}renderSurge();}
 function calcSurgeRange(minD,ch){
   const ds=dates();if(ds.length<2)return[];
   const to=sRangeTo(),from=sRangeFrom();
@@ -1342,6 +1346,30 @@ function exportStock(){
   })];
   const ws=XLSX.utils.aoa_to_sheet(data);XLSX.utils.book_append_sheet(wb,ws,'재고');
   XLSX.writeFile(wb,`재고_${new Date().toISOString().slice(0,10)}.xlsx`);toast('내보내기 완료');
+}
+
+// ── 트래커 현재 화면 엑셀 다운로드 ────────────────
+function exportTracker(){
+  if(!dates().length){toast('데이터 없음','err');return;}
+  const date=selDate();
+  let rows=filtered(date).map(r=>{
+    const info=getInfo(r.cd)||{},c=r.cd,m=r.ml;
+    return{...r,ld1:dN(c,m,date,'lk',1),ld3:dN(c,m,date,'lk',3),ld7:dN(c,m,date,'lk',7),ldR:dRange(c,m,'lk'),
+      pd1:dN(c,m,date,'pr',1),pd3:dN(c,m,date,'pr',3),
+      stk:getStock(c),_model:info.m||'',_np:getPrice(c),_launch:info.d||''};
+  });
+  const SM={ld1:'ld1',ld3:'ld3',ld7:'ld7',ldR:'ldR',pd1:'pd1',pd3:'pd3',stk:'stk'};
+  rows.sort((a,b)=>{const sk=SM[sCol]||sCol;let va=a[sk]??(sCol==='stk'?-1:null),vb=b[sk]??(sCol==='stk'?-1:null);if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return -1;return sDir==='asc'?(va>vb?1:-1):(va<vb?1:-1);});
+  const head=['브랜드','채널','채널코드','품번','상품명','정상가','판매가','할인율','가격1일','가격3일','좋아요','♥1일','♥3일','♥7일','♥기간','리뷰','재고','발매일','D+','URL'];
+  const aoa=[head,...rows.map(r=>{
+    const dy=r._launch?Math.floor((new Date()-new Date(r._launch))/86400000):'';
+    return[r.br,r.ml,r.cd,r._model,r.nm,r._np,r.pr,r.dc,r.pd1,r.pd3,r.lk,r.ld1,r.ld3,r.ld7,r.ldR,r.rv,r.stk,r._launch,(r._launch&&dy>=0?'D+'+dy:''),r.ur];
+  })];
+  const wb=XLSX.utils.book_new();const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=[{wch:8},{wch:8},{wch:11},{wch:10},{wch:34},{wch:9},{wch:9},{wch:7},{wch:9},{wch:9},{wch:8},{wch:7},{wch:7},{wch:7},{wch:8},{wch:6},{wch:7},{wch:11},{wch:6},{wch:40}];
+  XLSX.utils.book_append_sheet(wb,ws,'트래커');
+  XLSX.writeFile(wb,`CTAT트래커_${date}.xlsx`);
+  toast(`엑셀 ${rows.length}개 다운로드 ✓`,'ok');
 }
 
 // ── CHART ─────────────────────────────────────────
