@@ -473,7 +473,7 @@ function gPage(id, el){
 }
 
 // ── STATE ──────────────────────────────────────────
-let snapshots={}, launchMap={}, stockMap={}, launchDateMap={}, priceMap={}, salesMap={};
+let snapshots={}, launchMap={}, stockMap={}, launchDateMap={}, priceMap={}, salesMap={}, salesDaily={};
 let filters={brand:'all',channel:'all',sbrand:'all',ccbrand:'all',bnbrand:'all'};
 let sCol='lk', sDir='desc', curPage=1;
 let rangeTouched=false, sRangeTouched=false;   // 사용자가 기간을 직접 조정했는지 (조정 전엔 항상 최신까지 따라감)
@@ -526,9 +526,14 @@ async function syncData(){
     // 정상가: 셀릭 메인시트 기준 (품번 → 판매가)
     const pm2=d.priceMap||d.pm||{};
     if(Object.keys(pm2).length>0) priceMap=pm2;
-    // 매출: 로우데이터 기준 (품번 → {수량, 매출})
+    // 매출: 로우데이터 기준 (품번 → {수량, 매출} 총계, 폴백용)
     const slm=d.salesMap||{};
     if(Object.keys(slm).length>0) salesMap=slm;
+    // 매출 일별상세(품번→{날짜:[수량,매출]}) — 기간 선택에 반응. 별도 파일, localStorage엔 저장 안 함(2MB)
+    try{
+      const rsd=await fetch(base+'sales_daily.json?t='+t);
+      if(rsd.ok){const sd=await rsd.json();if(sd&&Object.keys(sd).length>0)salesDaily=sd;}
+    }catch(e){console.warn('sales_daily 로드 실패',e);}
 
     // 발매일: 서버(tracker_data.json)를 우선, 로컬 입력분은 보존
     const ldm=d.launchDateMap||d.ld||{};
@@ -879,8 +884,15 @@ function getInfo(cd){
 function getStock(cd){const i=getInfo(cd);if(!i||!i.m)return null;const q=stockMap[i.m];return q!=null?q:null;}
 // 정상가: 셀릭 메인시트(품번) 우선, 없으면 linkage 판매가
 function getPrice(cd){const i=getInfo(cd);const m=i&&i.m?i.m:null;if(m&&priceMap[m]!=null)return priceMap[m];return i&&i.p!=null?i.p:null;}
-// 매출: 로우데이터(품번) → {q:판매량, a:매출액} (연간 누적)
-function getSales(cd){const i=getInfo(cd);const m=i&&i.m?i.m:null;return m&&salesMap[m]?salesMap[m]:null;}
+// 매출: 로우데이터(품번) → {q:판매량, a:매출액} — 선택한 기간(시작~종료)의 합계
+function getSales(cd){
+  const i=getInfo(cd);const m=i&&i.m?i.m:null;if(!m)return null;
+  const dm=salesDaily[m];
+  if(!dm) return salesMap[m]||null;                 // 일별 미로드 시 총계 폴백
+  const f=rangeFrom(),t=rangeTo();let q=0,a=0;
+  for(const d in dm){if(d>=f&&d<=t){q+=dm[d][0];a+=dm[d][1];}}
+  return {q,a};                                      // 기간 내 합(없으면 0)
+}
 
 // ── SURGE ─────────────────────────────────────────
 function calcSurge(nD,minD,ch){
@@ -1170,18 +1182,18 @@ const COLS=[
   {k:'lk',l:'좋아요',w:'68px'},
   {k:'ld1',l:'♥1일',w:'58px'},{k:'ld3',l:'♥3일',w:'58px'},{k:'ld7',l:'♥7일',w:'58px'},{k:'ldR',l:'♥기간',w:'64px'},
   {k:'rv',l:'리뷰',w:'52px'},{k:'stk',l:'재고',w:'58px'},
-  {k:'sales',l:'매출',w:'96px'},{k:'qty',l:'판매량',w:'62px'},
+  {k:'sales',l:'기간매출',w:'98px'},{k:'qty',l:'기간판매',w:'64px'},
   {k:'launch',l:'발매일',w:'94px',ns:1},{k:'days',l:'D+',w:'46px',ns:1},
   {k:'chart',l:'',w:'28px',ns:1}
 ];
 function renderTable(date){
   const surgeSet=new Set(calcSurge(3,100).map(r=>r.cd+'|'+r.ml));
   let rows=filtered(date).map(r=>{
-    const info=getInfo(r.cd)||{},c=r.cd,m=r.ml;
+    const info=getInfo(r.cd)||{},c=r.cd,m=r.ml,sv=getSales(c)||{};
     return{...r,ld1:dN(c,m,date,'lk',1),ld3:dN(c,m,date,'lk',3),ld7:dN(c,m,date,'lk',7),ldR:dRange(c,m,'lk'),
       pd1:dN(c,m,date,'pr',1),pd3:dN(c,m,date,'pr',3),
       stk:getStock(c),_model:info.m||'',_np:getPrice(c),_launch:info.d||'',
-      _salesA:(getSales(c)||{}).a??null,_salesQ:(getSales(c)||{}).q??null};
+      _salesA:sv.a??null,_salesQ:sv.q??null};
   });
   const SORT_MAP={ld1:'ld1',ld3:'ld3',ld7:'ld7',ldR:'ldR',pd1:'pd1',pd3:'pd3',stk:'stk',sales:'_salesA',qty:'_salesQ'};
   rows.sort((a,b)=>{
@@ -1366,15 +1378,15 @@ function exportTracker(){
   if(!dates().length){toast('데이터 없음','err');return;}
   const date=selDate();
   let rows=filtered(date).map(r=>{
-    const info=getInfo(r.cd)||{},c=r.cd,m=r.ml;
+    const info=getInfo(r.cd)||{},c=r.cd,m=r.ml,sv=getSales(c)||{};
     return{...r,ld1:dN(c,m,date,'lk',1),ld3:dN(c,m,date,'lk',3),ld7:dN(c,m,date,'lk',7),ldR:dRange(c,m,'lk'),
       pd1:dN(c,m,date,'pr',1),pd3:dN(c,m,date,'pr',3),
       stk:getStock(c),_model:info.m||'',_np:getPrice(c),_launch:info.d||'',
-      _salesA:(getSales(c)||{}).a??null,_salesQ:(getSales(c)||{}).q??null};
+      _salesA:sv.a??null,_salesQ:sv.q??null};
   });
   const SM={ld1:'ld1',ld3:'ld3',ld7:'ld7',ldR:'ldR',pd1:'pd1',pd3:'pd3',stk:'stk',sales:'_salesA',qty:'_salesQ'};
   rows.sort((a,b)=>{const sk=SM[sCol]||sCol;let va=a[sk]??(sCol==='stk'?-1:null),vb=b[sk]??(sCol==='stk'?-1:null);if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return -1;return sDir==='asc'?(va>vb?1:-1):(va<vb?1:-1);});
-  const head=['브랜드','채널','채널코드','품번','상품명','정상가','판매가','할인율','가격1일','가격3일','좋아요','♥1일','♥3일','♥7일','♥기간','리뷰','재고','매출','판매량','발매일','D+','URL'];
+  const head=['브랜드','채널','채널코드','품번','상품명','정상가','판매가','할인율','가격1일','가격3일','좋아요','♥1일','♥3일','♥7일','♥기간','리뷰','재고','기간매출','기간판매','발매일','D+','URL'];
   const aoa=[head,...rows.map(r=>{
     const dy=r._launch?Math.floor((new Date()-new Date(r._launch))/86400000):'';
     return[r.br,r.ml,r.cd,r._model,r.nm,r._np,r.pr,r.dc,r.pd1,r.pd3,r.lk,r.ld1,r.ld3,r.ld7,r.ldR,r.rv,r.stk,r._salesA,r._salesQ,r._launch,(r._launch&&dy>=0?'D+'+dy:''),r.ur];
